@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 // mui imports
 import { ListSubheader, styled, Theme } from '@mui/material';
 
@@ -26,10 +25,6 @@ const NavGroup = ({ item }: ItemType) => {
   return (
     <ListSubheaderStyle>{item.subheader}</ListSubheaderStyle>
   );
-};
-
-NavGroup.propTypes = {
-  item: PropTypes.object,
 };
 
 export default NavGroup;
