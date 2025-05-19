@@ -1,0 +1,179 @@
+'use client';
+
+import {
+  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
+  IconButton, Stack, Typography, Grid, Chip
+} from '@mui/material';
+import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
+import { TimePicker } from '@mui/x-date-pickers/TimePicker';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
+import dayjs, { Dayjs } from 'dayjs';
+import { useEffect, useState } from 'react';
+
+interface TimeSlot {
+  _id?: string;
+  start: string;
+  end: string;
+  approved?: boolean;
+  date: string;
+  userId: string;
+}
+
+interface SlotForm {
+  start: Dayjs | null;
+  end: Dayjs | null;
+}
+
+export default function ScheduleRegisterPage() {
+  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [slots, setSlots] = useState<SlotForm[]>([]);
+  const [scheduleList, setScheduleList] = useState<TimeSlot[]>([]);
+
+  const userId = 'mock-user-id'; // 실제 로그인 시스템과 연동 필요
+
+  const handleDateChange = (date: Dayjs | null) => {
+    setSelectedDate(date);
+    setSlots([{ start: null, end: null }]);
+    setOpenDialog(true);
+  };
+
+  const handleSlotChange = (index: number, type: 'start' | 'end', value: Dayjs | null) => {
+    const updated = [...slots];
+    updated[index][type] = value;
+    setSlots(updated);
+  };
+
+  const addSlot = () => {
+    setSlots([...slots, { start: null, end: null }]);
+  };
+
+  const removeSlot = (index: number) => {
+    const updated = [...slots];
+    updated.splice(index, 1);
+    setSlots(updated);
+  };
+
+  const handleSave = async () => {
+    if (!selectedDate) return;
+    const newItems = slots.filter(slot => slot.start && slot.end).map(slot => ({
+      userId,
+      date: selectedDate.format('YYYY-MM-DD'),
+      start: slot.start!.format('HH:mm'),
+      end: slot.end!.format('HH:mm'),
+    }));
+
+    await Promise.all(
+      newItems.map(item =>
+        fetch('/api/schedules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item),
+        })
+      )
+    );
+
+    setOpenDialog(false);
+    fetchSchedules();
+  };
+
+  const handleDelete = async (id?: string) => {
+    if (!id) return;
+    await fetch(`/api/schedules?id=${id}`, { method: 'DELETE' });
+    fetchSchedules();
+  };
+
+  const fetchSchedules = async () => {
+    const res = await fetch('/api/schedules');
+    const data: TimeSlot[] = await res.json();
+    setScheduleList(data.filter(s => s.userId === userId));
+  };
+
+  useEffect(() => {
+    fetchSchedules();
+  }, []);
+
+  const filteredSchedule = scheduleList.filter(slot =>
+    dayjs(slot.date).format('YYYY-MM') === dayjs().format('YYYY-MM')
+  );
+
+  return (
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Box p={4}>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={6}>
+            <Typography variant="h5" mb={2}>📌 My Shifts This Month</Typography>
+            <Stack spacing={1}>
+              {filteredSchedule.map((slot, idx) => (
+                <Box key={idx} display="flex" alignItems="center" justifyContent="space-between" p={1} border="1px solid #ddd" borderRadius={1}>
+                  <Box>
+                    <Typography variant="body2" fontWeight="bold">
+                      {dayjs(slot.date).format('MMM D')} {slot.start} ~ {slot.end}
+                    </Typography>
+                  </Box>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip
+                      label={slot.approved ? 'Approved' : 'Pending'}
+                      size="small"
+                      color={slot.approved ? 'success' : 'warning'}
+                    />
+                    <IconButton size="small" onClick={() => handleDelete(slot._id)}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Typography variant="h5" mb={2}>📅 Select a Date to Add Schedule</Typography>
+            <DateCalendar value={selectedDate} onChange={handleDateChange} />
+          </Grid>
+        </Grid>
+
+        <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>
+            Add Shifts for {selectedDate?.format('YYYY-MM-DD')}
+          </DialogTitle>
+          <DialogContent>
+            <Stack spacing={2}>
+              {slots.map((slot, idx) => (
+                <Stack key={idx} direction="row" spacing={2} alignItems="center">
+                  <TimePicker
+                    label="Start Time"
+                    value={slot.start}
+                    onChange={(newValue) => handleSlotChange(idx, 'start', newValue)}
+                  />
+                  <TimePicker
+                    label="End Time"
+                    value={slot.end}
+                    onChange={(newValue) => handleSlotChange(idx, 'end', newValue)}
+                  />
+                  <IconButton onClick={() => removeSlot(idx)}>
+                    <DeleteIcon />
+                  </IconButton>
+                </Stack>
+              ))}
+              <Button
+                startIcon={<AddIcon />}
+                onClick={addSlot}
+                variant="outlined"
+              >
+                Add Slot
+              </Button>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleSave}>Save</Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </LocalizationProvider>
+  );
+}

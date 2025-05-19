@@ -1,0 +1,8 @@
+{
+  "/authentication/login/page": "app/authentication/login/page.js",
+  "/api/schedules/route": "app/api/schedules/route.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
+  "/(DashboardLayout)/approve/page": "app/(DashboardLayout)/approve/page.js",
+  "/(DashboardLayout)/page": "app/(DashboardLayout)/page.js",
+  "/(DashboardLayout)/schedule/page": "app/(DashboardLayout)/schedule/page.js"
+}
