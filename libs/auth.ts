@@ -42,7 +42,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   pages: {
-    signIn: '/authentication/login',
+  signIn: '/authentication/login',
     newUser: '/authentication/register',
   },
   callbacks: {

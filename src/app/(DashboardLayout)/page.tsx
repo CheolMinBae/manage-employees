@@ -1,70 +1,49 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Grid, Box } from '@mui/material';
 import PageContainer from '@/app/(DashboardLayout)/components/container/PageContainer';
 import WeeklyScheduleTable from './components/dashboard/WeeklyScheduleTable';
 import { useProtectedSession } from './hooks/useProtectedSession';
+import { startOfWeek, format } from 'date-fns';
 
-const Dashboard = () => {
+export default function Dashboard() {
   useProtectedSession();
 
-  const scheduleData = [
-    {
-      name: 'IRON',
-      position: 'Barista',
-      corp: 'SWC',
-      eid: 2,
-      category: 'FOH',
-      shifts: [
-        {
-          date: '2025-05-11',
-          slots: [
-            { start: '06:00', end: '09:00' },
-            { start: '14:00', end: '18:00' },
-            { start: '23:00', end: '02:00' },
-          ],
-        },
-        { date: '2025-05-12', slots: [{ start: '05:00', end: '10:00' }] },
-        { date: '2025-05-13', slots: [{ start: '10:00', end: '14:00' }] },
-        { date: '2025-05-14', slots: [] },
-        { date: '2025-05-15', slots: [{ start: '15:00', end: '21:00' }] },
-        { date: '2025-05-16', slots: [{ start: '10:00', end: '15:00' }] },
-        { date: '2025-05-17', slots: [{ start: '14:00', end: '18:00' }] },
-      ],
-    },
-    {
-      name: 'GRACE',
-      position: 'Barista',
-      corp: 'SWC',
-      eid: 3,
-      category: 'FOH',
-      shifts: [
-        {
-          date: '2025-05-11',
-          slots: [
-            { start: '09:00', end: '13:00' },
-            { start: '20:00', end: '01:00' },
-          ],
-        },
-        { date: '2025-05-12', slots: [] },
-        { date: '2025-05-13', slots: [{ start: '16:30', end: '21:00' }] },
-        { date: '2025-05-14', slots: [{ start: '16:30', end: '21:00' }] },
-        { date: '2025-05-15', slots: [] },
-        { date: '2025-05-16', slots: [{ start: '10:00', end: '15:00' }] },
-        { date: '2025-05-17', slots: [{ start: '14:00', end: '18:00' }] },
-      ],
-    },
-  ];
+  const [data, setData] = useState<{
+    weekTitle: string;
+    weekRange: string;
+    dates: string[];
+    scheduleData: any[];
+  } | null>(null);
 
-  const dates = [
-    '2025-05-11',
-    '2025-05-12',
-    '2025-05-13',
-    '2025-05-14',
-    '2025-05-15',
-    '2025-05-16',
-    '2025-05-17',
-  ];
+  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 0 }));
+
+  const fetchData = async () => {
+    const queryParams = new URLSearchParams({
+      mode: 'dashboard',
+      weekStart: format(weekStart, 'yyyy-MM-dd'),
+    });
+
+    const res = await fetch(`/api/schedules?${queryParams.toString()}`, {
+      cache: 'no-store',
+    });
+
+    const json = await res.json();
+    setData(json);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [weekStart]);
+
+  const handleWeekChange = (dir: 'prev' | 'next') => {
+    const newStart = new Date(weekStart);
+    newStart.setDate(weekStart.getDate() + (dir === 'next' ? 7 : -7));
+    setWeekStart(newStart);
+  };
+
+  if (!data) return <div>Loading...</div>;
 
   return (
     <PageContainer title="Dashboard" description="this is Dashboard">
@@ -72,16 +51,15 @@ const Dashboard = () => {
         <Grid container spacing={1}>
           <Grid item xs={12} lg={12}>
             <WeeklyScheduleTable
-              weekTitle="Week 3 of May"
-              weekRange="May 11 – May 17"
-              dates={dates}
-              scheduleData={scheduleData}
+              dates={data.dates}
+              scheduleData={data.scheduleData}
+              weekStart={weekStart}
+              onWeekChange={handleWeekChange}
+              weekRange={data.weekRange}
             />
           </Grid>
         </Grid>
       </Box>
     </PageContainer>
   );
-};
-
-export default Dashboard;
+}

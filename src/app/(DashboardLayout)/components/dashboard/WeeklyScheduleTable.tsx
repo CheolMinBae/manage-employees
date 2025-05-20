@@ -2,8 +2,13 @@
 
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Typography, Paper, Box, Chip, Stack
+  Typography, Paper, Box, Chip, Stack, IconButton, Grid, FormControl,
+  InputLabel, Select, MenuItem, TextField, Button
 } from '@mui/material';
+import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import { useSession } from 'next-auth/react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface ShiftSlot {
   start: string;
@@ -25,38 +30,111 @@ interface UserSchedule {
 }
 
 interface WeeklyScheduleTableProps {
-  weekTitle: string;
   weekRange: string;
   dates: string[];
   scheduleData: UserSchedule[];
+  weekStart: Date;
+  onWeekChange: (dir: 'prev' | 'next') => void;
 }
 
-const formatDateHeader = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    weekday: 'short',
-  });
-};
-
-const getShiftsForDate = (shifts: DailyShift[], date: string) => {
-  const entry = shifts.find((s) => s.date === date);
-  return entry?.slots ?? [];
-};
-
 export default function WeeklyScheduleTable({
-  weekTitle,
   weekRange,
   dates,
   scheduleData,
+  weekStart,
+  onWeekChange,
 }: WeeklyScheduleTableProps) {
+  const { data: session } = useSession();
+  const userPosition = session?.user?.position;
+  const userName = session?.user?.name;
+
+  const [filterType, setFilterType] = useState<'name' | 'corp' | 'category' | 'eid'>('name');
+  const [keyword, setKeyword] = useState('');
+  const [trigger, setTrigger] = useState(0);
+
+  const filteredData = useMemo(() => {
+    if (userPosition === 'employee') {
+      return scheduleData.filter((u) => u.name === userName);
+    }
+    if (!keyword.trim()) return scheduleData;
+    return scheduleData.filter((u) => {
+      const target = String(u[filterType]).toLowerCase();
+      return target.includes(keyword.trim().toLowerCase());
+    });
+  }, [scheduleData, filterType, keyword, userPosition, userName, trigger]);
+
+  const formatDateHeader = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      weekday: 'short',
+    });
+  };
+
+  const getShiftsForDate = (shifts: DailyShift[], date: string) => {
+    const entry = shifts.find((s) => s.date === date);
+    return entry?.slots ?? [];
+  };
+
   return (
     <Box>
-      <Typography variant="h5" mb={2}>
-        🗓️ {weekTitle} ({weekRange})
-      </Typography>
+      {/* 타이틀 및 주간 이동 */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h5">🗓️ Weekly Schedule</Typography>
+        <Box display="flex" alignItems="center" gap={1}>
+          <IconButton onClick={() => onWeekChange('prev')}>
+            <ArrowBackIosNewIcon fontSize="small" />
+          </IconButton>
+          <Typography variant="body1" fontWeight="bold">{weekRange}</Typography>
+          <IconButton onClick={() => onWeekChange('next')}>
+            <ArrowForwardIosIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
 
+      {/* 필터 영역 (관리자만 노출) */}
+      {userPosition === 'admin' && (
+        <Grid container spacing={2} alignItems="center" mb={3}>
+          <Grid item xs={12} md={2}>
+            <FormControl fullWidth>
+              <InputLabel>Filter by</InputLabel>
+              <Select
+                label="Filter by"
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as any)}
+              >
+                <MenuItem value="name">Name</MenuItem>
+                <MenuItem value="corp">Corp</MenuItem>
+                <MenuItem value="category">Category</MenuItem>
+                <MenuItem value="eid">EID</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Keyword"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && setTrigger((t) => t + 1)}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={2}>
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={() => setTrigger((t) => t + 1)}
+            >
+              Search
+            </Button>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* 스케줄 테이블 */}
       <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
         <Table size="small">
           <TableHead>
@@ -72,7 +150,7 @@ export default function WeeklyScheduleTable({
           </TableHead>
 
           <TableBody>
-            {scheduleData.map((user, i) => (
+            {filteredData.map((user, i) => (
               <TableRow
                 key={`${user.name}-${i}`}
                 sx={{ '&:not(:last-child)': { borderBottom: '1px solid #e0e0e0' } }}
