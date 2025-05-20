@@ -12,6 +12,7 @@ import {
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import { useSession } from 'next-auth/react';
 
 interface ItemType {
   isMobileSidebarOpen: boolean;
@@ -26,6 +27,8 @@ const MSidebar = ({
 }: ItemType) => {
   const lgUp = useMediaQuery((theme: any) => theme.breakpoints.up('lg'));
   const sidebarWidth = 270;
+  const { data: session } = useSession();
+  console.log(session);
 
   const scrollbarStyles = {
     '&::-webkit-scrollbar': {
@@ -43,6 +46,9 @@ const MSidebar = ({
     { title: 'Approve', icon: <GroupOutlinedIcon />, href: '/approve' },
     { title: 'Settings', icon: <SettingsOutlinedIcon />, href: '/settings' },
   ];
+  const adminMenus = ['Dashboard', 'Approve', 'Settings'];
+  const employeeMenus = ['Dashboard', 'Schedule'];
+  const menus = session?.user?.position === 'admin' ? navItems.filter(item => adminMenus.includes(item.title)) : navItems.filter(item => employeeMenus.includes(item.title));
 
   const content = (
     <Box
@@ -60,7 +66,7 @@ const MSidebar = ({
       </Box>
 
       <List>
-        {navItems.map((item) => (
+        {menus.map((item) => (
           <ListItem button key={item.title} component="a" href={item.href}>
             <ListItemIcon>{item.icon}</ListItemIcon>
             <ListItemText primary={item.title} />

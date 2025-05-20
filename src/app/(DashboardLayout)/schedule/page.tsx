@@ -13,6 +13,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
 import dayjs, { Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 
 interface TimeSlot {
   _id?: string;
@@ -29,12 +30,13 @@ interface SlotForm {
 }
 
 export default function ScheduleRegisterPage() {
+  const { data: session } = useSession();
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [slots, setSlots] = useState<SlotForm[]>([]);
   const [scheduleList, setScheduleList] = useState<TimeSlot[]>([]);
 
-  const userId = 'mock-user-id'; // 실제 로그인 시스템과 연동 필요
+  const userId = session?.user?.id;
 
   const handleDateChange = (date: Dayjs | null) => {
     setSelectedDate(date);
@@ -59,7 +61,7 @@ export default function ScheduleRegisterPage() {
   };
 
   const handleSave = async () => {
-    if (!selectedDate) return;
+    if (!selectedDate || !userId) return;
     const newItems = slots.filter(slot => slot.start && slot.end).map(slot => ({
       userId,
       date: selectedDate.format('YYYY-MM-DD'),
@@ -88,6 +90,7 @@ export default function ScheduleRegisterPage() {
   };
 
   const fetchSchedules = async () => {
+    if (!userId) return;
     const res = await fetch('/api/schedules');
     const data: TimeSlot[] = await res.json();
     setScheduleList(data.filter(s => s.userId === userId));
@@ -95,7 +98,7 @@ export default function ScheduleRegisterPage() {
 
   useEffect(() => {
     fetchSchedules();
-  }, []);
+  }, [userId]);
 
   const filteredSchedule = scheduleList.filter(slot =>
     dayjs(slot.date).format('YYYY-MM') === dayjs().format('YYYY-MM')
