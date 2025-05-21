@@ -20,6 +20,7 @@ const signupUserSchema = new mongoose.Schema({
   status: { type: String, default: 'pending' },
   corp: { type: String },
   eid: { type: String },
+  userType: { type: String },
   category: { type: String },
 }, { timestamps: true });
 

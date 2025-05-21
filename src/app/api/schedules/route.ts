@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const userIds = Array.from(new Set(schedules.map((s: any) => s.userId.toString())));
   const users = await SignupUser.find({ _id: { $in: userIds } })
-    .select('_id name corp eid category position')
+    .select('_id name corp eid category position userType')
     .lean();
 
   const userMap = new Map(users.map((u: any) => [u._id.toString(), u]));
@@ -34,10 +34,10 @@ export async function GET(req: NextRequest) {
     return {
       ...s,
       name: user?.name || 'Unknown',
-      corp: user?.corp || 'NOT FOUND',
-      eid: user?.eid || 'NOT FOUND',
-      category: user?.category || 'NOT FOUND',
-      position: user?.position || 'NOT FOUND',
+      corp: user?.corp || 'Unknown',
+      eid: user?.eid || 'Unknown',
+      category: user?.category || 'Unknown',
+      position: user?.userType || 'Barista',
     };
   });
 
