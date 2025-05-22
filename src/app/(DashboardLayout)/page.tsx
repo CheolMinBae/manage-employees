@@ -6,6 +6,8 @@ import PageContainer from '@/app/(DashboardLayout)/components/container/PageCont
 import WeeklyScheduleTable from './components/dashboard/WeeklyScheduleTable';
 import { useProtectedSession } from './hooks/useProtectedSession';
 import { startOfWeek, format } from 'date-fns';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 
 export default function Dashboard() {
   useProtectedSession();
@@ -46,20 +48,22 @@ export default function Dashboard() {
   if (!data) return <div>Loading...</div>;
 
   return (
-    <PageContainer title="Dashboard" description="this is Dashboard">
-      <Box>
-        <Grid container spacing={1}>
-          <Grid item xs={12} lg={12}>
-            <WeeklyScheduleTable
-              dates={data.dates}
-              scheduleData={data.scheduleData}
-              weekStart={weekStart}
-              onWeekChange={handleWeekChange}
-              weekRange={data.weekRange}
-            />
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <PageContainer title="Dashboard" description="this is Dashboard">
+        <Box>
+          <Grid container spacing={1}>
+            <Grid item xs={12} lg={12}>
+              <WeeklyScheduleTable
+                dates={data.dates}
+                scheduleData={data.scheduleData}
+                weekStart={weekStart}
+                onWeekChange={handleWeekChange}
+                weekRange={data.weekRange}
+              />
+            </Grid>
           </Grid>
-        </Grid>
-      </Box>
-    </PageContainer>
+        </Box>
+      </PageContainer>
+    </LocalizationProvider>
   );
 }

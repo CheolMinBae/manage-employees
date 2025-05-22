@@ -8,11 +8,14 @@ import {
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import { useSession } from 'next-auth/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import dayjs, { Dayjs } from 'dayjs';
+import ApprovalDialog from '@/app/(DashboardLayout)/components/approve/ApprovalDialog';
 
 interface ShiftSlot {
   start: string;
   end: string;
+  status: 'pending' | 'approved' | 'rejected';
 }
 
 interface DailyShift {
@@ -21,6 +24,7 @@ interface DailyShift {
 }
 
 interface UserSchedule {
+  userId: string;
   name: string;
   position: string;
   corp: string;
@@ -52,12 +56,25 @@ export default function WeeklyScheduleTable({
   const [keyword, setKeyword] = useState('');
   const [trigger, setTrigger] = useState(0);
 
+  const [approvalOpen, setApprovalOpen] = useState(false);
+  const [startTime, setStartTime] = useState<Dayjs | null>(null);
+  const [endTime, setEndTime] = useState<Dayjs | null>(null);
+  const [selectedShiftInfo, setSelectedShiftInfo] = useState<{
+    userId: string;
+    date: string;
+    start: string;
+    end: string;
+  } | null>(null);
+
   const filteredData = useMemo(() => {
     if (userPosition === 'employee') {
       return scheduleData.filter((u) => u.name === userName);
     }
-    if (!keyword.trim()) return scheduleData;
-    return scheduleData.filter((u) => {
+    const filtered = scheduleData.filter((u) =>
+      ['employee', 'barista'].includes(u.position?.toLowerCase())
+    );
+    if (!keyword.trim()) return filtered;
+    return filtered.filter((u) => {
       const target = String(u[filterType]).toLowerCase();
       return target.includes(keyword.trim().toLowerCase());
     });
@@ -77,9 +94,48 @@ export default function WeeklyScheduleTable({
     return entry?.slots ?? [];
   };
 
+  const getColorByStatus = (status: ShiftSlot['status']) => {
+    switch (status) {
+      case 'approved': return '#2e7d32';
+      case 'pending': return '#f9a825';
+      case 'rejected': return '#c62828';
+      default: return '#000';
+    }
+  };
+
+  const handleSlotClick = (slot: ShiftSlot, user: UserSchedule, date: string) => {
+    if (slot.status === 'pending') {
+      setStartTime(dayjs(`${date}T${slot.start}`));
+      setEndTime(dayjs(`${date}T${slot.end}`));
+      setSelectedShiftInfo({
+        userId: user.userId,
+        date,
+        start: slot.start,
+        end: slot.end,
+      });
+      setApprovalOpen(true);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!selectedShiftInfo) return;
+    const res = await fetch('/api/schedules', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...selectedShiftInfo,
+        approved: true,
+      }),
+    });
+
+    if (res.ok) {
+      setApprovalOpen(false);
+      window.location.reload(); // ✅ 전체 페이지 리프레시
+    }
+  };
+
   return (
     <Box>
-      {/* 타이틀 및 주간 이동 */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5">🗓️ Weekly Schedule</Typography>
         <Box display="flex" alignItems="center" gap={1}>
@@ -93,7 +149,6 @@ export default function WeeklyScheduleTable({
         </Box>
       </Box>
 
-      {/* 필터 영역 (관리자만 노출) */}
       {userPosition === 'admin' && (
         <Grid container spacing={2} alignItems="center" mb={3}>
           <Grid item xs={12} md={2}>
@@ -111,7 +166,6 @@ export default function WeeklyScheduleTable({
               </Select>
             </FormControl>
           </Grid>
-
           <Grid item xs={12} md={6}>
             <TextField
               fullWidth
@@ -121,21 +175,15 @@ export default function WeeklyScheduleTable({
               onKeyDown={(e) => e.key === 'Enter' && setTrigger((t) => t + 1)}
             />
           </Grid>
-
           <Grid item xs={12} md={2}>
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={() => setTrigger((t) => t + 1)}
-            >
+            <Button fullWidth variant="contained" onClick={() => setTrigger((t) => t + 1)}>
               Search
             </Button>
           </Grid>
         </Grid>
       )}
 
-      {/* 스케줄 테이블 */}
-      <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+      <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -148,24 +196,18 @@ export default function WeeklyScheduleTable({
               ))}
             </TableRow>
           </TableHead>
-
           <TableBody>
             {filteredData.map((user, i) => (
-              <TableRow
-                key={`${user.name}-${i}`}
-                sx={{ '&:not(:last-child)': { borderBottom: '1px solid #e0e0e0' } }}
-              >
+              <TableRow key={`${user.name}-${i}`}>
                 <TableCell>
                   <Typography fontWeight="bold">{user.name}</Typography>
                   <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
-                    <Chip label={user.corp} size="small" variant="outlined" sx={{ borderColor: '#1976d2', color: '#1976d2' }} />
-                    <Chip label={`EID: ${user.eid}`} size="small" variant="outlined" sx={{ borderColor: '#2e7d32', color: '#2e7d32' }} />
-                    <Chip label={user.category} size="small" variant="outlined" sx={{ borderColor: '#ed6c02', color: '#ed6c02' }} />
+                    <Chip label={user.corp} size="small" variant="outlined" />
+                    <Chip label={`EID: ${user.eid}`} size="small" variant="outlined" />
+                    <Chip label={user.category} size="small" variant="outlined" />
                   </Stack>
                 </TableCell>
-
                 <TableCell>{user.position}</TableCell>
-
                 {dates.map((date) => {
                   const shifts = getShiftsForDate(user.shifts, date);
                   return (
@@ -173,7 +215,12 @@ export default function WeeklyScheduleTable({
                       {shifts.length > 0 ? (
                         <Box display="flex" flexDirection="column" gap={0.5}>
                           {shifts.map((slot, idx) => (
-                            <Typography variant="body2" key={idx}>
+                            <Typography
+                              key={idx}
+                              variant="body2"
+                              sx={{ color: getColorByStatus(slot.status), cursor: slot.status === 'pending' ? 'pointer' : 'default' }}
+                              onClick={() => handleSlotClick(slot, user, date)}
+                            >
                               {slot.start}–{slot.end}
                             </Typography>
                           ))}
@@ -189,6 +236,16 @@ export default function WeeklyScheduleTable({
           </TableBody>
         </Table>
       </TableContainer>
+
+      <ApprovalDialog
+        open={approvalOpen}
+        onClose={() => setApprovalOpen(false)}
+        startTime={startTime}
+        endTime={endTime}
+        setStartTime={setStartTime}
+        setEndTime={setEndTime}
+        onApprove={handleApprove}
+      />
     </Box>
   );
 }

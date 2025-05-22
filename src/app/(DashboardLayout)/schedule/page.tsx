@@ -45,6 +45,7 @@ export default function ScheduleRegisterPage() {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [copyTargetWeek, setCopyTargetWeek] = useState<WeekRange | null>(null);
+  const [shiftsForSelectedDate, setShiftsForSelectedDate] = useState<TimeSlot[]>([]);
 
   const userId = session?.user?.id as string;
 
@@ -68,8 +69,13 @@ export default function ScheduleRegisterPage() {
   };
 
   const handleDateChange = (date: Dayjs | null) => {
+    if (!date) return;
     setSelectedDate(date);
     setOpenDialog(true);
+
+    const dateStr = date.format('YYYY-MM-DD');
+    const shifts = scheduleList.filter((s) => s.date === dateStr && s.userId === userId);
+    setShiftsForSelectedDate(shifts);
   };
 
   const openEditDialog = (slot: TimeSlot) => {
@@ -175,7 +181,7 @@ export default function ScheduleRegisterPage() {
         <Grid container spacing={4}>
           <Grid item xs={12} md={6}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5">📌 My Shifts</Typography>
+              <Typography variant="h5">\ud83d\udccc My Shifts</Typography>
               <Box display="flex" alignItems="center" gap={1}>
                 <IconButton onClick={() => handleMonthChange('prev')}>
                   <ArrowBackIosNewIcon fontSize="small" />
@@ -199,7 +205,7 @@ export default function ScheduleRegisterPage() {
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Typography variant="h5" mb={2}>📅 Select a Date to Add Schedule</Typography>
+            <Typography variant="h5" mb={2}>\ud83d\uddd3 Select a Date to Add Schedule</Typography>
             <DateCalendar
               value={selectedDate}
               onChange={handleDateChange}
@@ -214,7 +220,7 @@ export default function ScheduleRegisterPage() {
           selectedDate={selectedDate}
           userId={userId}
           fetchSchedules={fetchSchedules}
-          scheduleList={scheduleList}
+          existingShifts={shiftsForSelectedDate}
         />
 
         <EditShiftDialog

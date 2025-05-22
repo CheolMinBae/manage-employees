@@ -1,133 +1,174 @@
 'use client';
 
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Stack, Typography, IconButton
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  IconButton,
+  Grid,
 } from '@mui/material';
-import { TimePicker } from '@mui/x-date-pickers';
-import AddIcon from '@mui/icons-material/Add';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { Dayjs } from 'dayjs';
-import dayjs from 'dayjs';
-import { useState } from 'react';
+import AddIcon from '@mui/icons-material/Add';
+import dayjs, { Dayjs } from 'dayjs';
+import { useEffect, useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 
 interface SlotForm {
+  id: string;
+  date: Dayjs | null;
   start: Dayjs | null;
   end: Dayjs | null;
 }
 
-interface TimeSlot {
+interface ExistingShift {
   date: string;
   start: string;
   end: string;
-  approved?: boolean;
-  _id?: string;
+  userId: string;
 }
 
-interface Props {
+interface AddShiftDialogProps {
   open: boolean;
   onClose: () => void;
+  onSave?: (slots: { date: string; start: string; end: string }[]) => void;
   selectedDate: Dayjs | null;
-  userId: string | undefined;
+  userId: string;
+  existingShifts: ExistingShift[];
   fetchSchedules: () => void;
-  scheduleList: TimeSlot[];
 }
 
 export default function AddShiftDialog({
   open,
   onClose,
+  onSave,
   selectedDate,
   userId,
+  existingShifts,
   fetchSchedules,
-  scheduleList,
-}: Props) {
-  const [slots, setSlots] = useState<SlotForm[]>([{ start: null, end: null }]);
+}: AddShiftDialogProps) {
+  const [slotForms, setSlotForms] = useState<SlotForm[]>([]);
 
-  const handleSlotChange = (index: number, type: 'start' | 'end', value: Dayjs | null) => {
-    const updated = [...slots];
-    updated[index][type] = value;
-    setSlots(updated);
+  useEffect(() => {
+    if (!selectedDate) return;
+    const existing = existingShifts.map((slot) => ({
+      id: uuidv4(),
+      date: dayjs(slot.date),
+      start: dayjs(`${slot.date} ${slot.start}`),
+      end: dayjs(`${slot.date} ${slot.end}`),
+    }));
+
+    const empty = {
+      id: uuidv4(),
+      date: selectedDate,
+      start: null,
+      end: null,
+    };
+
+    setSlotForms([...existing, empty]);
+  }, [selectedDate, existingShifts]);
+
+  const handleSlotChange = (id: string, field: keyof Omit<SlotForm, 'id'>, value: Dayjs | null) => {
+    setSlotForms((prev) =>
+      prev.map((slot) => (slot.id === id ? { ...slot, [field]: value } : slot))
+    );
   };
 
-  const addSlot = () => {
-    setSlots([...slots, { start: null, end: null }]);
+  const handleAddSlot = () => {
+    if (!selectedDate) return;
+    setSlotForms((prev) => [
+      ...prev,
+      {
+        id: uuidv4(),
+        date: selectedDate,
+        start: null,
+        end: null,
+      },
+    ]);
   };
 
-  const removeSlot = (index: number) => {
-    const updated = [...slots];
-    updated.splice(index, 1);
-    setSlots(updated);
+  const handleRemoveSlot = (id: string) => {
+    setSlotForms((prev) => prev.filter((slot) => slot.id !== id));
   };
 
-  const handleSave = async () => {
-    if (!selectedDate || !userId) return;
-    const newItems = slots
-      .filter(slot => slot.start && slot.end)
-      .map(slot => ({
-        userId,
-        date: selectedDate.format('YYYY-MM-DD'),
-        start: slot.start!.format('HH:mm'),
-        end: slot.end!.format('HH:mm'),
-      }));
+  const handleSubmit = async () => {
+    const formatted = slotForms.map((slot) => ({
+      date: slot.date?.format('YYYY-MM-DD') ?? '',
+      start: slot.start?.format('HH:mm') ?? '',
+      end: slot.end?.format('HH:mm') ?? '',
+      userId,
+    }));
 
     await Promise.all(
-      newItems.map(item =>
+      formatted.map((entry) =>
         fetch('/api/schedules', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(item),
+          body: JSON.stringify(entry),
         })
       )
     );
 
-    onClose();
     fetchSchedules();
-    setSlots([{ start: null, end: null }]);
+    onClose();
   };
 
-  const existing = scheduleList.filter(s =>
-    dayjs(s.date).format('YYYY-MM-DD') === selectedDate?.format('YYYY-MM-DD')
-  );
-
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add Shifts for {selectedDate?.format('YYYY-MM-DD')}</DialogTitle>
-      <DialogContent>
-        {existing.length > 0 && (
-          <Stack spacing={1} mb={2}>
-            <Typography variant="subtitle2" color="text.secondary">Existing Shifts</Typography>
-            {existing.map((slot, idx) => (
-              <Typography key={idx} variant="body2" color="text.secondary">
-                {slot.start} ~ {slot.end} ({slot.approved ? 'Approved' : 'Pending'})
-              </Typography>
-            ))}
-          </Stack>
-        )}
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>Add Shift</DialogTitle>
+      <DialogContent dividers>
+        {slotForms.map((slot) => (
+          <div key={slot.id} style={{ marginBottom: '1.5rem' }}>
+            <Grid container spacing={2} alignItems="center" sx={{ mb: 1 }}>
+              <Grid item xs={12}>
+                <DatePicker
+                  label="Date"
+                  value={slot.date}
+                  onChange={(newDate) => handleSlotChange(slot.id, 'date', newDate)}
+                  slotProps={{ textField: { fullWidth: true, error: false } }}
+                />
+              </Grid>
+            </Grid>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={4}>
+                <TimePicker
+                  label="Start Time"
+                  value={slot.start}
+                  onChange={(newStart) => handleSlotChange(slot.id, 'start', newStart)}
+                  views={['hours', 'minutes']}
+                  slotProps={{ textField: { fullWidth: true, error: false } }}
+                />
+              </Grid>
+              <Grid item xs={4}>
+                <TimePicker
+                  label="End Time"
+                  value={slot.end}
+                  onChange={(newEnd) => handleSlotChange(slot.id, 'end', newEnd)}
+                  views={['hours', 'minutes']}
+                  slotProps={{ textField: { fullWidth: true, error: false } }}
+                />
+              </Grid>
+              <Grid item xs={4} sx={{ display: 'flex', alignItems: 'center' }}>
+                <IconButton onClick={() => handleRemoveSlot(slot.id)} aria-label="delete">
+                  <DeleteIcon />
+                </IconButton>
+              </Grid>
+            </Grid>
+          </div>
+        ))}
 
-        <Stack spacing={2}>
-          {slots.map((slot, idx) => (
-            <Stack key={idx} direction="row" spacing={2} alignItems="center">
-              <TimePicker
-                label="Start Time"
-                value={slot.start}
-                onChange={(newValue) => handleSlotChange(idx, 'start', newValue)}
-              />
-              <TimePicker
-                label="End Time"
-                value={slot.end}
-                onChange={(newValue) => handleSlotChange(idx, 'end', newValue)}
-              />
-              <IconButton onClick={() => removeSlot(idx)}>
-                <DeleteIcon />
-              </IconButton>
-            </Stack>
-          ))}
-          <Button startIcon={<AddIcon />} onClick={addSlot} variant="outlined">Add Slot</Button>
-        </Stack>
+        <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddSlot} sx={{ mt: 1 }}>
+          Add Slot
+        </Button>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSave}>Save</Button>
+        <Button onClick={handleSubmit} variant="contained" color="primary">
+          Save
+        </Button>
       </DialogActions>
     </Dialog>
   );
