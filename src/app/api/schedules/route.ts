@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
 
       if (!scheduleMap[s.userId]) {
         scheduleMap[s.userId] = {
-          userId: s.userId, // ✅ userId 포함
+          userId: s.userId,
           name: s.name,
           position: s.position,
           corp: s.corp,
@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
       );
 
       const slotData = {
+        _id: s._id,
         start: s.start,
         end: s.end,
         status,
@@ -119,33 +120,19 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(withUserData);
 }
 
-export async function PUT(req: NextRequest) {
-  await dbConnect();
-  const data = await req.json();
-  const { userId, date, start, end } = data;
-
-  if (!userId || !date || !start || !end) {
-    return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
-  }
-
-  const updated = await Schedule.findOneAndUpdate(
-    { userId, date, start, end },
-    { approved: true },
-    { new: true }
-  );
-
-  if (!updated) {
-    return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
-  }
-
-  return NextResponse.json(updated);
-}
-
 export async function POST(req: NextRequest) {
   await dbConnect();
   const data = await req.json();
   const newSchedule = await Schedule.create(data);
   return NextResponse.json(newSchedule);
+}
+
+export async function PUT(req: NextRequest) {
+  await dbConnect();
+  const data = await req.json();
+  const { id, ...updates } = data;
+  const updated = await Schedule.findByIdAndUpdate(id, updates, { new: true });
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(req: NextRequest) {

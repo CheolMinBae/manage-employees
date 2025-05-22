@@ -11,8 +11,10 @@ import { useSession } from 'next-auth/react';
 import { useMemo, useState } from 'react';
 import dayjs, { Dayjs } from 'dayjs';
 import ApprovalDialog from '@/app/(DashboardLayout)/components/approve/ApprovalDialog';
+import EditShiftDialog from '@/app/(DashboardLayout)/components/schedule/EditShiftDialog';
 
 interface ShiftSlot {
+  _id: string;
   start: string;
   end: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -57,10 +59,11 @@ export default function WeeklyScheduleTable({
   const [trigger, setTrigger] = useState(0);
 
   const [approvalOpen, setApprovalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [startTime, setStartTime] = useState<Dayjs | null>(null);
   const [endTime, setEndTime] = useState<Dayjs | null>(null);
   const [selectedShiftInfo, setSelectedShiftInfo] = useState<{
-    userId: string;
+    _id: string;
     date: string;
     start: string;
     end: string;
@@ -108,12 +111,16 @@ export default function WeeklyScheduleTable({
       setStartTime(dayjs(`${date}T${slot.start}`));
       setEndTime(dayjs(`${date}T${slot.end}`));
       setSelectedShiftInfo({
-        userId: user.userId,
+        _id: slot._id,
         date,
         start: slot.start,
         end: slot.end,
       });
-      setApprovalOpen(true);
+      if (userPosition === 'admin') {
+        setApprovalOpen(true);
+      } else if (userPosition === 'employee') {
+        setEditModalOpen(true);
+      }
     }
   };
 
@@ -130,7 +137,7 @@ export default function WeeklyScheduleTable({
 
     if (res.ok) {
       setApprovalOpen(false);
-      window.location.reload(); // ✅ 전체 페이지 리프레시
+      window.location.reload();
     }
   };
 
@@ -246,6 +253,15 @@ export default function WeeklyScheduleTable({
         setEndTime={setEndTime}
         onApprove={handleApprove}
       />
+
+      {selectedShiftInfo && (
+        <EditShiftDialog
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          slot={selectedShiftInfo}
+          fetchSchedules={() => window.location.reload()}
+        />
+      )}
     </Box>
   );
 }

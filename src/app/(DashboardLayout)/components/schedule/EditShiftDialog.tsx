@@ -10,12 +10,11 @@ import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 
 interface TimeSlot {
-  _id?: string;
+  _id: string;
   date: string;
   start: string;
   end: string;
   approved?: boolean;
-  userId: string;
 }
 
 interface Props {
