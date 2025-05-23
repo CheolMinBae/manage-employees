@@ -1,4 +1,3 @@
-// src/app/authentication/register/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -18,6 +17,10 @@ export default function RegisterPage() {
     email: '',
     password: '',
     position: 'employee',
+    userType: 'barista',
+    corp: 'corp1',
+    eid: '',
+    category: '',
   });
 
   const router = useRouter();
@@ -34,38 +37,76 @@ export default function RegisterPage() {
     });
 
     if (res.ok) {
-      alert('회원가입 완료');
+      alert('Registration successful');
       router.push('/authentication/login');
     } else {
       const data = await res.json();
-      alert(`회원가입 실패: ${data.message || '서버 오류'}`);
+      alert(`Registration failed: ${data.message || 'Server error'}`);
     }
   };
 
   return (
     <Box maxWidth={400} mx="auto" mt={8}>
       <Typography variant="h5" gutterBottom>
-        회원가입
+        Sign Up
       </Typography>
       <Stack spacing={2}>
-        <TextField name="name" label="이름" value={form.name} onChange={handleChange} />
-        <TextField name="email" label="이메일" value={form.email} onChange={handleChange} />
-        <TextField name="password" type="password" label="비밀번호" value={form.password} onChange={handleChange} />
+        <TextField name="name" label="Name" value={form.name} onChange={handleChange} />
+        <TextField name="email" label="Email" value={form.email} onChange={handleChange} />
+        <TextField name="password" type="password" label="Password" value={form.password} onChange={handleChange} />
 
-        {/* ✅ position 셀렉트박스 추가 */}
         <TextField
           name="position"
-          label="직책"
+          label="User Role"
           select
           value={form.position}
           onChange={handleChange}
         >
-          <MenuItem value="employee">직원</MenuItem>
-          <MenuItem value="admin">관리자</MenuItem>
+          <MenuItem value="employee">Employee</MenuItem>
+          <MenuItem value="admin">Admin</MenuItem>
         </TextField>
 
+        <TextField
+          name="userType"
+          label="Position"
+          select
+          value={form.userType}
+          onChange={handleChange}
+        >
+          <MenuItem value="barista">Barista</MenuItem>
+          <MenuItem value="supervisor">Supervisor</MenuItem>
+          <MenuItem value="position1">Position 1</MenuItem>
+          <MenuItem value="position2">Position 2</MenuItem>
+        </TextField>
+
+        <TextField
+          name="corp"
+          label="Corporation"
+          select
+          value={form.corp}
+          onChange={handleChange}
+        >
+          <MenuItem value="corp1">Corp 1</MenuItem>
+          <MenuItem value="corp2">Corp 2</MenuItem>
+          <MenuItem value="corp3">Corp 3</MenuItem>
+        </TextField>
+
+        <TextField
+          name="eid"
+          label="EID"
+          value={form.eid}
+          onChange={handleChange}
+        />
+
+        <TextField
+          name="category"
+          label="Category"
+          value={form.category}
+          onChange={handleChange}
+        />
+
         <Button variant="contained" onClick={handleRegister}>
-          회원가입
+          Register
         </Button>
       </Stack>
     </Box>

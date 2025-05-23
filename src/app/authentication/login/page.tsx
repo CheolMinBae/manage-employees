@@ -13,6 +13,7 @@ import {
   Link as MuiLink,
 } from '@mui/material';
 import Link from 'next/link';
+import { FcGoogle } from 'react-icons/fc'; // ✅ 추가
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -29,46 +30,49 @@ export default function LoginPage() {
     if (res?.ok) {
       router.push('/');
     } else {
-      alert('로그인 실패');
+      alert('Login failed');
     }
   };
 
   return (
     <Box maxWidth={400} mx="auto" mt={8}>
       <Typography variant="h5" gutterBottom>
-        로그인
+        Tiger Schedule
       </Typography>
 
       <Stack spacing={2}>
         <TextField
-          label="이메일"
+          label="Email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
         <TextField
-          label="비밀번호"
+          label="Password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
         <Button variant="contained" onClick={handleSubmit}>
-          로그인
+          Sign In
         </Button>
 
-        <Divider>또는</Divider>
+        <Divider>or</Divider>
 
-        <Button variant="outlined" onClick={() => signIn('google')}>
-          Google 로그인
+        <Button
+          variant="outlined"
+          onClick={() => signIn('google')}
+          startIcon={<FcGoogle />} // ✅ 아이콘 추가
+        >
+          Sign in with Google
         </Button>
       </Stack>
 
-      {/* ✅ 최하단 회원가입 링크 */}
       <Box mt={4} textAlign="center">
         <Typography variant="body2">
-          아직 계정이 없으신가요?{' '}
+          Don't have an account?{' '}
           <MuiLink component={Link} href="/authentication/register" underline="hover">
-            회원가입
+            Sign up
           </MuiLink>
         </Typography>
       </Box>
