@@ -3,6 +3,7 @@ import { styled, Container, Box } from "@mui/material";
 import React, { useState } from "react";
 import Header from "@/app/(DashboardLayout)/layout/header/Header";
 import Sidebar from "@/app/(DashboardLayout)/layout/sidebar/Sidebar";
+import FirstLoginCheck from "@/app/(DashboardLayout)/components/FirstLoginCheck";
 import { requireSession } from "@libs/auth/requireSession";
 
 
@@ -36,6 +37,7 @@ export default async function RootLayout({
   const [isMobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   return (
     <MainWrapper className="mainwrapper">
+      <FirstLoginCheck />
       {/* ------------------------------------------- */}
       {/* Sidebar */}
       {/* ------------------------------------------- */}

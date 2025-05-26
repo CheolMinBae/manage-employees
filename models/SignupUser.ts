@@ -10,6 +10,8 @@ export interface ISignupUser {
   corp?: string;
   eid?: string;
   category?: string;
+  userType?: string;
+  isFirstLogin?: boolean;
 }
 
 const signupUserSchema = new mongoose.Schema({
@@ -22,6 +24,7 @@ const signupUserSchema = new mongoose.Schema({
   eid: { type: String },
   userType: { type: String },
   category: { type: String },
+  isFirstLogin: { type: Boolean, default: true },
 }, { timestamps: true });
 
 const SignupUser =

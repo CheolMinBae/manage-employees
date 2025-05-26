@@ -36,7 +36,17 @@ export const authOptions: NextAuthOptions = {
         const user = await SignupUser.findOne({ email: credentials?.email });
         if (!user || !user.password) return null;
 
-        const isValid = await compare(credentials!.password, user.password);
+        let isValid = false;
+        
+        // 해시된 비밀번호인지 확인 (bcrypt 해시는 $2a$ 또는 $2b$로 시작)
+        if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+          // 해시된 비밀번호와 비교
+          isValid = await compare(credentials!.password, user.password);
+        } else {
+          // 평문 비밀번호와 직접 비교
+          isValid = credentials!.password === user.password;
+        }
+        
         return isValid ? user : null;
       },
     }),

@@ -43,12 +43,13 @@ export async function POST(req: Request) {
     const newUser = new SignupUser({
       name,
       email,
-      password, // 실제 환경에서는 해시화 필요
+      password, // 기본 패스워드는 평문으로 저장 (최초 로그인 시 해시화됨)
       position,
       userType,
       corp,
       eid,
       category,
+      isFirstLogin: true, // 새 사용자는 최초 로그인 상태
     });
 
     await newUser.save();
