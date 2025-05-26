@@ -280,7 +280,7 @@ export default function WeeklyScheduleTable({
                           ))}
                         </Box>
                       ) : (
-                        <Typography variant="body2" color="text.secondary">OFF</Typography>
+                        <Typography variant="body2" color="text.secondary"></Typography>
                       )}
                     </TableCell>
                   );
