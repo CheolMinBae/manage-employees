@@ -22,7 +22,7 @@ import EditShiftDialog from '@/app/(DashboardLayout)/components/schedule/EditShi
 import ShiftList from '@/app/(DashboardLayout)/components/schedule/ShiftList';
 
 interface TimeSlot {
-  _id?: string;
+  _id: string;
   start: string;
   end: string;
   approved?: boolean;

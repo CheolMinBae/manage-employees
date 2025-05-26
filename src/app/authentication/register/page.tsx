@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box,
@@ -11,19 +11,71 @@ import {
   MenuItem,
 } from '@mui/material';
 
+interface UserRole {
+  _id: string;
+  key: string;
+  name: string;
+  description?: string;
+}
+
+interface Corporation {
+  _id: string;
+  name: string;
+  description?: string;
+}
+
 export default function RegisterPage() {
   const [form, setForm] = useState({
     name: '',
     email: '',
     password: '',
     position: 'employee',
-    userType: 'barista',
-    corp: 'corp1',
+    userType: '',
+    corp: '',
     eid: '',
     category: '',
   });
 
+  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [corporations, setCorporations] = useState<Corporation[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const router = useRouter();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [rolesRes, corpsRes] = await Promise.all([
+          fetch('/api/userrole'),
+          fetch('/api/corporation')
+        ]);
+
+        if (rolesRes.ok && corpsRes.ok) {
+          const [rolesData, corpsData] = await Promise.all([
+            rolesRes.json(),
+            corpsRes.json()
+          ]);
+
+          setUserRoles(rolesData);
+          setCorporations(corpsData);
+
+          // 기본값 설정
+          if (rolesData.length > 0) {
+            setForm(prev => ({ ...prev, userType: rolesData[0].key }));
+          }
+          if (corpsData.length > 0) {
+            setForm(prev => ({ ...prev, corp: corpsData[0].name }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -44,6 +96,10 @@ export default function RegisterPage() {
       alert(`Registration failed: ${data.message || 'Server error'}`);
     }
   };
+
+  if (loading) {
+    return <Box>Loading...</Box>;
+  }
 
   return (
     <Box maxWidth={400} mx="auto" mt={8}>
@@ -73,10 +129,11 @@ export default function RegisterPage() {
           value={form.userType}
           onChange={handleChange}
         >
-          <MenuItem value="barista">Barista</MenuItem>
-          <MenuItem value="supervisor">Supervisor</MenuItem>
-          <MenuItem value="position1">Position 1</MenuItem>
-          <MenuItem value="position2">Position 2</MenuItem>
+          {userRoles.map((role) => (
+            <MenuItem key={role._id} value={role.key}>
+              {role.name}
+            </MenuItem>
+          ))}
         </TextField>
 
         <TextField
@@ -86,9 +143,11 @@ export default function RegisterPage() {
           value={form.corp}
           onChange={handleChange}
         >
-          <MenuItem value="corp1">Corp 1</MenuItem>
-          <MenuItem value="corp2">Corp 2</MenuItem>
-          <MenuItem value="corp3">Corp 3</MenuItem>
+          {corporations.map((corp) => (
+            <MenuItem key={corp._id} value={corp.name}>
+              {corp.name}
+            </MenuItem>
+          ))}
         </TextField>
 
         <TextField

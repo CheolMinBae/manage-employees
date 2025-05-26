@@ -24,6 +24,11 @@ interface TimeSlot {
   approved: boolean;
 }
 
+interface WorkSession {
+  start: Dayjs | null;
+  end: Dayjs | null;
+}
+
 export default function ScheduleApprovalPage() {
   const [schedules, setSchedules] = useState<TimeSlot[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -54,18 +59,65 @@ export default function ScheduleApprovalPage() {
     setOpenDialog(true);
   };
 
-  const handleApprove = async () => {
-    if (!selectedSlot || !startTime || !endTime) return;
-    await fetch('/api/schedules', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: selectedSlot._id,
-        approved: true,
-        start: startTime.format('HH:mm'),
-        end: endTime.format('HH:mm'),
-      }),
-    });
+  const handleApprove = async (sessions?: WorkSession[]) => {
+    if (!selectedSlot) return;
+
+    if (sessions && sessions.length > 1) {
+      // Handle separated sessions
+      const firstSession = sessions[0];
+      const secondSession = sessions[1];
+
+      // Create two separate schedule entries
+      const firstSchedule = {
+        userId: selectedSlot.userId,
+        name: selectedSlot.name,
+        date: selectedSlot.date,
+        start: firstSession.start?.format('HH:mm'),
+        end: firstSession.end?.format('HH:mm'),
+        approved: true
+      };
+
+      const secondSchedule = {
+        userId: selectedSlot.userId,
+        name: selectedSlot.name,
+        date: selectedSlot.date,
+        start: secondSession.start?.format('HH:mm'),
+        end: secondSession.end?.format('HH:mm'),
+        approved: true
+      };
+
+      // Delete the original schedule
+      await fetch(`/api/schedules?id=${selectedSlot._id}`, {
+        method: 'DELETE',
+      });
+
+      // Create two new schedules
+      await Promise.all([
+        fetch('/api/schedules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(firstSchedule),
+        }),
+        fetch('/api/schedules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(secondSchedule),
+        })
+      ]);
+    } else {
+      // Handle single session
+      await fetch('/api/schedules', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedSlot._id,
+          approved: true,
+          start: startTime?.format('HH:mm'),
+          end: endTime?.format('HH:mm'),
+        }),
+      });
+    }
+
     setOpenDialog(false);
     setSelectedSlot(null);
     fetchAllSchedules();
