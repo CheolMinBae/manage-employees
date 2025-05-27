@@ -9,6 +9,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import { useEffect, useMemo, useState } from 'react';
 import { startOfWeek, endOfWeek } from 'date-fns';
+import { WEEK_OPTIONS } from '@/constants/dateConfig';
 import FilterControls from '../components/approve/FilterControls';
 import ApprovalDialog from '../components/approve/ApprovalDialog';
 
@@ -40,8 +41,8 @@ export default function ScheduleApprovalPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState([
     {
-      startDate: startOfWeek(new Date(), { weekStartsOn: 0 }),
-      endDate: endOfWeek(new Date(), { weekStartsOn: 0 }),
+      startDate: startOfWeek(new Date(), WEEK_OPTIONS),
+      endDate: endOfWeek(new Date(), WEEK_OPTIONS),
       key: 'selection'
     }
   ]);

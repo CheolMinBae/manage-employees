@@ -16,6 +16,7 @@ import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths,
   subMonths, format, isSameMonth, isSameDay, addDays, isAfter, parseISO
 } from 'date-fns';
+import { WEEK_OPTIONS } from '@/constants/dateConfig';
 
 import AddShiftDialog from '@/app/(DashboardLayout)/components/schedule/AddShiftDialog';
 import EditShiftDialog from '@/app/(DashboardLayout)/components/schedule/EditShiftDialog';
@@ -57,11 +58,11 @@ export default function ScheduleRegisterPage() {
 
   const getWeeksInMonth = (monthStart: Date): WeekRange[] => {
     const weeks: WeekRange[] = [];
-    let start = startOfWeek(startOfMonth(monthStart), { weekStartsOn: 0 });
+    let start = startOfWeek(startOfMonth(monthStart), WEEK_OPTIONS);
     const monthEnd = endOfMonth(monthStart);
 
     while (start <= monthEnd) {
-      const end = endOfWeek(start, { weekStartsOn: 0 });
+      const end = endOfWeek(start, WEEK_OPTIONS);
       weeks.push({ start, end });
       start = addDays(start, 7);
     }
@@ -111,15 +112,15 @@ export default function ScheduleRegisterPage() {
     if (!copyTargetWeek || !userId) return;
 
     const today = new Date();
-    const targetWeekStart = startOfWeek(today, { weekStartsOn: 0 });
+    const targetWeekStart = startOfWeek(today, WEEK_OPTIONS);
 
     const sourceWeek = scheduleList.filter((s) => {
       const date = parseISO(s.date);
-      return isSameDay(startOfWeek(date, { weekStartsOn: 0 }), copyTargetWeek.start);
+      return isSameDay(startOfWeek(date, WEEK_OPTIONS), copyTargetWeek.start);
     });
 
     const existing = scheduleList.filter((s) =>
-      isSameDay(startOfWeek(parseISO(s.date), { weekStartsOn: 0 }), targetWeekStart)
+      isSameDay(startOfWeek(parseISO(s.date), WEEK_OPTIONS), targetWeekStart)
     );
 
     const newItems = sourceWeek

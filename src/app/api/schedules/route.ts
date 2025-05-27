@@ -10,6 +10,7 @@ import {
   parseISO,
   isWithinInterval,
 } from 'date-fns';
+import { WEEK_OPTIONS } from '@/constants/dateConfig';
 
 export async function GET(req: NextRequest) {
   await dbConnect();
@@ -44,8 +45,8 @@ export async function GET(req: NextRequest) {
 
   if (mode === 'dashboard') {
     const today = start ? parseISO(start) : new Date();
-    const weekStart = startOfWeek(today, { weekStartsOn: 0 });
-    const weekEnd = endOfWeek(today, { weekStartsOn: 0 });
+    const weekStart = startOfWeek(today, WEEK_OPTIONS);
+    const weekEnd = endOfWeek(today, WEEK_OPTIONS);
 
     const filteredWithUserData = withUserData.filter((s) => {
       if (!filterType || !filterKeyword) return true;

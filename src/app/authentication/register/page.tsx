@@ -59,11 +59,11 @@ export default function RegisterPage() {
           setUserRoles(rolesData);
           setCorporations(corpsData);
 
-          // 기본값 설정
-          if (rolesData.length > 0) {
+          // 기본값 설정 (employee일 때만)
+          if (rolesData.length > 0 && form.position === 'employee') {
             setForm(prev => ({ ...prev, userType: rolesData[0].key }));
           }
-          if (corpsData.length > 0) {
+          if (corpsData.length > 0 && form.position === 'employee') {
             setForm(prev => ({ ...prev, corp: corpsData[0].name }));
           }
         }
@@ -78,7 +78,31 @@ export default function RegisterPage() {
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // position이 admin으로 변경될 때 다른 필드들을 기본값으로 설정
+    if (name === 'position' && value === 'admin') {
+      setForm({
+        ...form,
+        [name]: value,
+        userType: userRoles.length > 0 ? userRoles[0].key : 'admin',
+        corp: corporations.length > 0 ? corporations[0].name : 'Admin Corp',
+        eid: 'ADMIN001',
+        category: 'Management',
+      });
+    } else if (name === 'position' && value === 'employee') {
+      // employee로 변경될 때 기본값 설정
+      setForm({
+        ...form,
+        [name]: value,
+        userType: userRoles.length > 0 ? userRoles[0].key : '',
+        corp: corporations.length > 0 ? corporations[0].name : '',
+        eid: '',
+        category: '',
+      });
+    } else {
+      setForm({ ...form, [name]: value });
+    }
   };
 
   const handleRegister = async () => {
@@ -101,6 +125,8 @@ export default function RegisterPage() {
     return <Box>Loading...</Box>;
   }
 
+  const isAdmin = form.position === 'admin';
+
   return (
     <Box maxWidth={400} mx="auto" mt={8}>
       <Typography variant="h5" gutterBottom>
@@ -122,47 +148,51 @@ export default function RegisterPage() {
           <MenuItem value="admin">Admin</MenuItem>
         </TextField>
 
-        <TextField
-          name="userType"
-          label="Position"
-          select
-          value={form.userType}
-          onChange={handleChange}
-        >
-          {userRoles.map((role) => (
-            <MenuItem key={role._id} value={role.key}>
-              {role.name}
-            </MenuItem>
-          ))}
-        </TextField>
+        {!isAdmin && (
+          <>
+            <TextField
+              name="userType"
+              label="Position"
+              select
+              value={form.userType}
+              onChange={handleChange}
+            >
+              {userRoles.map((role) => (
+                <MenuItem key={role._id} value={role.key}>
+                  {role.name}
+                </MenuItem>
+              ))}
+            </TextField>
 
-        <TextField
-          name="corp"
-          label="Corporation"
-          select
-          value={form.corp}
-          onChange={handleChange}
-        >
-          {corporations.map((corp) => (
-            <MenuItem key={corp._id} value={corp.name}>
-              {corp.name}
-            </MenuItem>
-          ))}
-        </TextField>
+            <TextField
+              name="corp"
+              label="Corporation"
+              select
+              value={form.corp}
+              onChange={handleChange}
+            >
+              {corporations.map((corp) => (
+                <MenuItem key={corp._id} value={corp.name}>
+                  {corp.name}
+                </MenuItem>
+              ))}
+            </TextField>
 
-        <TextField
-          name="eid"
-          label="EID"
-          value={form.eid}
-          onChange={handleChange}
-        />
+            <TextField
+              name="eid"
+              label="EID"
+              value={form.eid}
+              onChange={handleChange}
+            />
 
-        <TextField
-          name="category"
-          label="Category"
-          value={form.category}
-          onChange={handleChange}
-        />
+            <TextField
+              name="category"
+              label="Category"
+              value={form.category}
+              onChange={handleChange}
+            />
+          </>
+        )}
 
         <Button variant="contained" onClick={handleRegister}>
           Register

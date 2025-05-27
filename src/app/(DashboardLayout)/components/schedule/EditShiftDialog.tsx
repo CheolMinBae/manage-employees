@@ -50,7 +50,7 @@ export default function EditShiftDialog({
         id: slot._id,
         start: editStart.format('HH:mm'),
         end: editEnd.format('HH:mm'),
-        approved: false,
+        approved: slot.approved || false,
       }),
     });
 
