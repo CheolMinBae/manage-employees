@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@libs/mongodb';
 import SignupUser from '@models/SignupUser';
+import Schedule from '@models/Schedule';
 
 // GET: 모든 사용자 조회
 export async function GET() {
@@ -127,17 +128,23 @@ export async function DELETE(req: Request) {
 
     await connectDB();
 
-    const deletedUser = await SignupUser.findByIdAndDelete(id);
-
-    if (!deletedUser) {
+    // 사용자 존재 확인
+    const userToDelete = await SignupUser.findById(id);
+    if (!userToDelete) {
       return NextResponse.json(
         { message: 'User not found.' },
         { status: 404 }
       );
     }
 
+    // 해당 사용자의 모든 스케줄 삭제
+    await Schedule.deleteMany({ userId: id });
+
+    // 사용자 삭제
+    await SignupUser.findByIdAndDelete(id);
+
     return NextResponse.json(
-      { message: 'User deleted successfully' },
+      { message: 'User and all associated schedules deleted successfully' },
       { status: 200 }
     );
   } catch (error: any) {

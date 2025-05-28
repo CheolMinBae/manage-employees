@@ -92,9 +92,28 @@ export default function ScheduleRegisterPage() {
 
   const fetchSchedules = async () => {
     if (!userId) return;
-    const res = await fetch('/api/schedules');
-    const data: TimeSlot[] = await res.json();
-    setScheduleList(data.filter((s) => s.userId === userId));
+    
+    try {
+      const res = await fetch('/api/schedules');
+      
+      if (!res.ok) {
+        console.error('Failed to fetch schedules:', res.status, res.statusText);
+        return;
+      }
+      
+      const text = await res.text();
+      if (!text) {
+        console.error('Empty response from schedules API');
+        setScheduleList([]);
+        return;
+      }
+      
+      const data: TimeSlot[] = JSON.parse(text);
+      setScheduleList(data.filter((s) => s.userId === userId));
+    } catch (error) {
+      console.error('Error fetching schedules:', error);
+      setScheduleList([]);
+    }
   };
 
   useEffect(() => {

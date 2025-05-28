@@ -79,10 +79,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
 
   const formatDateHeader = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+    return format(date, 'MMM d');
   };
 
   const handleDateChange = (direction: 'prev' | 'next') => {

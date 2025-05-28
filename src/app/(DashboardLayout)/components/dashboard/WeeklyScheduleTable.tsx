@@ -10,6 +10,7 @@ import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import { useSession } from 'next-auth/react';
 import { useMemo, useState } from 'react';
 import dayjs, { Dayjs } from 'dayjs';
+import { format, parseISO } from 'date-fns';
 import ApprovalDialog from '@/app/(DashboardLayout)/components/approve/ApprovalDialog';
 import EditShiftDialog from '@/app/(DashboardLayout)/components/schedule/EditShiftDialog';
 
@@ -59,6 +60,15 @@ export default function WeeklyScheduleTable({
   const userPosition = session?.user?.position;
   const userName = session?.user?.name;
 
+  // 날짜 배열을 일요일부터 토요일 순서로 정렬
+  const sortedDates = useMemo(() => {
+    return [...dates].sort((a, b) => {
+      const dateA = parseISO(a);
+      const dateB = parseISO(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [dates]);
+
   const [filterType, setFilterType] = useState<'name' | 'corp' | 'category' | 'eid'>('name');
   const [keyword, setKeyword] = useState('');
   const [trigger, setTrigger] = useState(0);
@@ -97,12 +107,27 @@ export default function WeeklyScheduleTable({
   }, [scheduleData, filterType, keyword, userPosition, userName, trigger]);
 
   const formatDateHeader = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      weekday: 'short',
-    });
+    // date-fns를 사용하여 일관된 포맷팅 (브라우저 로케일에 영향받지 않음)
+    const date = parseISO(dateStr);
+    const weekday = format(date, 'EEE'); // Sun, Mon, Tue, etc.
+    const monthDay = format(date, 'MMM d'); // Jan 1, Feb 2, etc.
+    const result = `${weekday} ${monthDay}`;
+    
+    // 디버깅용 로그 (첫 번째 날짜만)
+    if (dateStr === sortedDates[0]) {
+      console.log('Date formatting debug:', {
+        input: dateStr,
+        parsed: date,
+        weekday,
+        monthDay,
+        result,
+        dayOfWeek: date.getDay(), // 0=Sunday, 1=Monday, etc.
+        allDates: sortedDates,
+        weekStart: weekStart
+      });
+    }
+    
+    return result;
   };
 
   const getShiftsForDate = (shifts: DailyShift[], date: string) => {
@@ -342,7 +367,7 @@ export default function WeeklyScheduleTable({
             <TableRow>
               <TableCell><strong>Name</strong></TableCell>
               <TableCell><strong>Position</strong></TableCell>
-              {dates.map((date) => (
+              {sortedDates.map((date) => (
                 <TableCell key={date} align="center">
                   <strong>{formatDateHeader(date)}</strong>
                 </TableCell>
@@ -361,7 +386,7 @@ export default function WeeklyScheduleTable({
                   </Stack>
                 </TableCell>
                 <TableCell>{user.position}</TableCell>
-                {dates.map((date) => {
+                {sortedDates.map((date) => {
                   const shifts = getShiftsForDate(user.shifts, date);
                   return (
                     <TableCell key={date} align="center">
