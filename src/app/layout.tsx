@@ -3,7 +3,7 @@ import { Metadata } from "next";
 import ClientThemeProvider from "./components/ClientThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Seed and Water Bakery Cafe - Employee Scheduling",
+  title: "S☆W Team Scheduler",
   description: "Employee scheduling system for Seed and Water Bakery Cafe",
 };
 

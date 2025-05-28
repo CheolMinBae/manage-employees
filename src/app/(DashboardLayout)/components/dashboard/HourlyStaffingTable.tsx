@@ -3,7 +3,8 @@
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Typography, Paper, Box, Tooltip, Chip, Stack, IconButton, Snackbar, Alert,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem,
+  Select, FormControl, InputLabel, OutlinedInput
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -16,6 +17,7 @@ interface Employee {
   name: string;
   position: string;
   shift: string;
+  userType?: string;
 }
 
 interface HourlyData {
@@ -165,8 +167,9 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   
   // 필터링 상태
   const [nameFilter, setNameFilter] = useState('');
-  const [userTypeFilter, setUserTypeFilter] = useState('');
+  const [userTypeFilter, setUserTypeFilter] = useState<string[]>([]);
   const [companyFilter, setCompanyFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
 
   const fetchHourlyData = async (isRefresh = false) => {
     if (isRefresh) {
@@ -196,10 +199,11 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   // 필터링된 직원 데이터
   const filteredEmployees = data?.employeeSchedules.filter(employee => {
     const nameMatch = employee.name.toLowerCase().includes(nameFilter.toLowerCase());
-    const userTypeMatch = !userTypeFilter || employee.userType === userTypeFilter;
+    const userTypeMatch = userTypeFilter.length === 0 || userTypeFilter.includes(employee.userType);
     const companyMatch = !companyFilter || employee.corp === companyFilter;
+    const categoryMatch = categoryFilter.length === 0 || categoryFilter.includes(employee.category);
     
-    return nameMatch && userTypeMatch && companyMatch;
+    return nameMatch && userTypeMatch && companyMatch && categoryMatch;
   }) || [];
 
   // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산
@@ -215,14 +219,16 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     };
   }) || [];
 
-  // 고유한 userType과 company 목록 생성
+  // 고유한 userType, company, category 목록 생성
   const uniqueUserTypes = Array.from(new Set(data?.employeeSchedules.map(emp => emp.userType) || []));
   const uniqueCompanies = Array.from(new Set(data?.employeeSchedules.map(emp => emp.corp) || []));
+  const uniqueCategories = Array.from(new Set(data?.employeeSchedules.map(emp => emp.category) || []));
 
   const handleClearFilters = () => {
     setNameFilter('');
-    setUserTypeFilter('');
+    setUserTypeFilter([]);
     setCompanyFilter('');
+    setCategoryFilter([]);
   };
 
   const handleAddSchedule = async (startTime: string, endTime: string) => {
@@ -307,23 +313,57 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       return <Typography variant="body2">No employees working</Typography>;
     }
 
+    // User type별 카운트 계산 (userType이 있으면 사용, 없으면 position 사용)
+    const userTypeCounts = employees.reduce((acc, emp) => {
+      const typeKey = emp.userType || emp.position;
+      acc[typeKey] = (acc[typeKey] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
     return (
       <Box>
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
           Working Staff:
         </Typography>
-        <Stack spacing={0.5}>
+        <Stack spacing={0.2} sx={{ mb: 2 }}>
           {employees.map((emp, idx) => (
             <Box key={idx}>
               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                 {emp.name}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {emp.position} • {emp.shift}
+              <Typography variant="caption" color="white">
+                {emp.userType || emp.position} • {emp.shift}
               </Typography>
             </Box>
           ))}
         </Stack>
+        
+        {/* User Type별 합계 */}
+        <Box sx={{ borderTop: '1px solid #e0e0e0', pt: 1 }}>
+          <Typography variant="subtitle2" sx={{ mb: 0.5, fontSize: '0.75rem', fontWeight: 'bold' }}>
+            Summary by Position:
+          </Typography>
+          <Stack spacing={0.25}>
+            {Object.entries(userTypeCounts).map(([position, count]) => (
+              <Box key={position} sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="caption" color="white">
+                  {position}:
+                </Typography>
+                <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                  {count}
+                </Typography>
+              </Box>
+            ))}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e0e0e0', pt: 0.25, mt: 0.25 }}>
+              <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                Total:
+              </Typography>
+              <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                {employees.length}
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
       </Box>
     );
   };
@@ -422,21 +462,28 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
             sx={{ minWidth: 200 }}
             placeholder="Search by name..."
           />
-          <TextField
-            select
-            label="User Type"
-            value={userTypeFilter}
-            onChange={(e) => setUserTypeFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">All Types</MenuItem>
-            {uniqueUserTypes.map((type) => (
-              <MenuItem key={type} value={type}>
-                {type}
-              </MenuItem>
-            ))}
-          </TextField>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Position</InputLabel>
+            <Select
+              multiple
+              value={userTypeFilter}
+              onChange={(e) => setUserTypeFilter(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+              input={<OutlinedInput label="Position" />}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {selected.map((value) => (
+                    <Chip key={value} label={value} size="small" />
+                  ))}
+                </Box>
+              )}
+            >
+              {uniqueUserTypes.map((type) => (
+                <MenuItem key={type} value={type}>
+                  {type}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <TextField
             select
             label="Company"
@@ -452,6 +499,28 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               </MenuItem>
             ))}
           </TextField>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Category</InputLabel>
+            <Select
+              multiple
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+              input={<OutlinedInput label="Category" />}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {selected.map((value) => (
+                    <Chip key={value} label={value} size="small" />
+                  ))}
+                </Box>
+              )}
+            >
+              {uniqueCategories.map((category) => (
+                <MenuItem key={category} value={category}>
+                  {category}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <Button
             variant="outlined"
             size="small"

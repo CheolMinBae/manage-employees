@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
         name: string;
         position: string;
         shift: string;
+        userType: string;
       }> = [];
 
       schedules.forEach(schedule => {
@@ -53,7 +54,8 @@ export async function GET(req: NextRequest) {
             workingEmployees.push({
               name: user.name,
               position: user.position || 'Employee',
-              shift: `${schedule.start}-${schedule.end}`
+              shift: `${schedule.start}-${schedule.end}`,
+              userType: user.userType
             });
           }
         }

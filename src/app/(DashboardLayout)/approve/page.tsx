@@ -187,7 +187,10 @@ export default function ScheduleApprovalPage() {
                 <Paper key={slot._id} sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Box>
                     <Typography fontWeight="bold">
-                      {dayjs(slot.date).format('MMM D')} {slot.start} ~ {slot.end}
+                      date: {dayjs(slot.date).format('MMM D')}
+                    </Typography>
+                    <Typography fontWeight="bold">
+                      time: {slot.start} ~ {slot.end}
                     </Typography>
                     <Chip
                       label={slot.approved ? 'Approved' : 'Pending'}
