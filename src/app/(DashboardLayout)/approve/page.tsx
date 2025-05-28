@@ -230,6 +230,9 @@ export default function ScheduleApprovalPage() {
           setStartTime={setStartTime}
           setEndTime={setEndTime}
           onApprove={handleApprove}
+          selectedDate={selectedSlot?.date}
+          userId={selectedSlot?.userId}
+          currentScheduleId={selectedSlot?._id}
         />
       </Box>
     </LocalizationProvider>

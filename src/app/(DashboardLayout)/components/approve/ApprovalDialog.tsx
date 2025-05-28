@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { TimePicker } from '@mui/x-date-pickers';
 import { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 import { useState, useEffect } from 'react';
 
 interface Props {
@@ -17,6 +18,9 @@ interface Props {
   setStartTime: (val: Dayjs | null) => void;
   setEndTime: (val: Dayjs | null) => void;
   onApprove: (sessions?: WorkSession[]) => void;
+  selectedDate?: string;
+  userId?: string;
+  currentScheduleId?: string;
 }
 
 interface WorkSession {
@@ -24,17 +28,79 @@ interface WorkSession {
   end: Dayjs | null;
 }
 
+interface ExistingSchedule {
+  _id: string;
+  start: string;
+  end: string;
+}
+
 const ApprovalDialog = ({
   open, onClose,
   startTime, endTime,
   setStartTime, setEndTime,
-  onApprove
+  onApprove,
+  selectedDate,
+  userId,
+  currentScheduleId
 }: Props) => {
   const [isSeparated, setIsSeparated] = useState(false);
   const [sessions, setSessions] = useState<WorkSession[]>([
     { start: null, end: null },
     { start: null, end: null }
   ]);
+  const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
+
+  // Fetch existing schedules for the selected date and user
+  useEffect(() => {
+    const fetchExistingSchedules = async () => {
+      if (!selectedDate || !userId) return;
+
+      try {
+        const response = await fetch(`/api/schedules?date=${selectedDate}&userId=${userId}`);
+        const data = await response.json();
+        
+        // Filter out current schedule being edited
+        const filtered = data.filter((schedule: any) => 
+          schedule._id !== currentScheduleId && schedule.approved
+        );
+        
+        setExistingSchedules(filtered);
+      } catch (error) {
+        console.error('Error fetching existing schedules:', error);
+      }
+    };
+
+    if (open) {
+      fetchExistingSchedules();
+    }
+  }, [open, selectedDate, userId, currentScheduleId]);
+
+  // Check if a time conflicts with existing schedules
+  const isTimeConflicted = (time: Dayjs) => {
+    return existingSchedules.some(schedule => {
+      const scheduleStart = dayjs(`${selectedDate} ${schedule.start}`);
+      const scheduleEnd = dayjs(`${selectedDate} ${schedule.end}`);
+      
+      return time.isAfter(scheduleStart) && time.isBefore(scheduleEnd);
+    });
+  };
+
+  // Custom shouldDisableTime function
+  const shouldDisableTime = (time: Dayjs, view: any) => {
+    if (view === 'hours') {
+      // Check if any minute in this hour conflicts
+      for (let minute = 0; minute < 60; minute += 15) {
+        const testTime = time.minute(minute);
+        if (!isTimeConflicted(testTime)) {
+          return false; // If any 15-minute slot is available, don't disable the hour
+        }
+      }
+      return true; // All minutes in this hour are conflicted
+    } else {
+      // For minutes, check the specific time
+      return isTimeConflicted(time);
+    }
+  };
 
   // Check if work duration is 6 hours or more
   const hasMealBreak = () => {
@@ -93,16 +159,26 @@ const ApprovalDialog = ({
                 label="Start Time"
                 value={startTime}
                 onChange={setStartTime}
+                shouldDisableTime={shouldDisableTime}
                 sx={{ flex: 1 }}
               />
               <TimePicker
                 label="End Time"
                 value={endTime}
                 onChange={setEndTime}
+                shouldDisableTime={shouldDisableTime}
                 sx={{ flex: 1 }}
               />
             </Stack>
           </Box>
+
+          {existingSchedules.length > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Existing schedules: {existingSchedules.map(s => `${s.start}-${s.end}`).join(', ')}
+              </Typography>
+            </Box>
+          )}
 
           {hasMealBreak() && (
             <Box>

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import {
   Box,
   Drawer,
@@ -62,7 +63,13 @@ const MSidebar = ({
       }}
     >
       <Box sx={{ mb: 4 }}>
-        <img src="/images/logos/dark-logo.svg" alt="Logo" width={120} />
+        <Image
+          src="/logo_img.png"
+          alt="Brand Logo"
+          width={160}
+          height={64}
+          style={{ objectFit: 'contain' }}
+        />
       </Box>
 
       <List>

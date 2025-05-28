@@ -21,6 +21,18 @@ export async function GET(req: NextRequest) {
     const start = searchParams.get('weekStart');
     const filterType = searchParams.get('type');
     const filterKeyword = searchParams.get('keyword')?.toLowerCase();
+    const userId = searchParams.get('userId');
+    const date = searchParams.get('date');
+
+    // If userId and/or date are provided, return filtered schedules
+    if (userId || date) {
+      const filter: any = {};
+      if (userId) filter.userId = userId;
+      if (date) filter.date = date;
+
+      const schedules = await Schedule.find(filter).lean();
+      return NextResponse.json(schedules);
+    }
 
     const schedules = await Schedule.find().select('+createdAt').lean();
 

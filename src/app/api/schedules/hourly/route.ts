@@ -17,27 +17,14 @@ export async function GET(req: NextRequest) {
       approved: true
     }).lean();
 
-    if (schedules.length === 0) {
-      // 빈 시간대 데이터 반환
-      const emptyHourlyData = Array.from({ length: 24 }, (_, hour) => ({
-        hour,
-        count: 0,
-        employees: []
-      }));
-      
-      return NextResponse.json({
-        date,
-        hourlyData: emptyHourlyData
-      });
-    }
-
-    // 사용자 정보 가져오기
-    const userIds = schedules.map(s => s.userId);
-    const users = await SignupUser.find({ _id: { $in: userIds } })
-      .select('_id name position')
+    // 모든 직원 정보 가져오기 (position이 employee인 사용자만)
+    const allUsers = await SignupUser.find({
+      position: 'employee'
+    })
+      .select('_id name position corp eid category userType')
       .lean();
 
-    const userMap = new Map(users.map((u: any) => [u._id.toString(), u]));
+    const userMap = new Map(allUsers.map((u: any) => [u._id.toString(), u]));
 
     // 시간대별 근무자 계산
     const hourlyData = Array.from({ length: 24 }, (_, hour) => {
@@ -79,9 +66,68 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // 개별 직원의 시간대별 근무 상태 계산
+    const employeeSchedules = allUsers.map((user: any) => {
+      const userSchedules = schedules.filter(s => s.userId === user._id.toString());
+      const hourlyStatus = Array.from({ length: 24 }, (_, hour) => {
+        const currentHourStart = hour * 60; // 현재 시간의 시작 (분 단위)
+        const currentHourEnd = (hour + 1) * 60; // 현재 시간의 끝 (분 단위)
+        
+        let totalWorkingMinutes = 0;
+        let shifts: string[] = [];
+        
+        for (const schedule of userSchedules) {
+          const startHour = parseInt(schedule.start.split(':')[0]);
+          const startMinute = parseInt(schedule.start.split(':')[1]);
+          const endHour = parseInt(schedule.end.split(':')[0]);
+          const endMinute = parseInt(schedule.end.split(':')[1]);
+
+          const startTotalMinutes = startHour * 60 + startMinute;
+          const endTotalMinutes = endHour * 60 + endMinute;
+
+          // 현재 시간대와 근무 시간의 겹치는 부분 계산
+          const overlapStart = Math.max(currentHourStart, startTotalMinutes);
+          const overlapEnd = Math.min(currentHourEnd, endTotalMinutes);
+          
+          if (overlapStart < overlapEnd) {
+            totalWorkingMinutes += (overlapEnd - overlapStart);
+            shifts.push(`${schedule.start}-${schedule.end}`);
+          }
+        }
+        
+        const workingRatio = totalWorkingMinutes / 60; // 60분 기준으로 비율 계산
+        
+        return {
+          isWorking: workingRatio > 0,
+          workingRatio: workingRatio,
+          shift: shifts.length > 0 ? shifts.join(', ') : null
+        };
+      });
+
+      return {
+        userId: user._id.toString(),
+        name: user.name,
+        position: user.position || 'Employee',
+        corp: user.corp,
+        eid: user.eid,
+        category: user.category,
+        userType: user.userType,
+        hourlyStatus,
+        hasSchedule: userSchedules.length > 0
+      };
+    });
+
+    // 스케줄이 있는 직원을 위쪽에, 없는 직원을 아래쪽에 정렬
+    employeeSchedules.sort((a, b) => {
+      if (a.hasSchedule && !b.hasSchedule) return -1;
+      if (!a.hasSchedule && b.hasSchedule) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
     return NextResponse.json({
       date,
-      hourlyData
+      hourlyData,
+      employeeSchedules
     });
 
   } catch (error) {

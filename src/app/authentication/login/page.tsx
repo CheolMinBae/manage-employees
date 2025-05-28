@@ -3,6 +3,7 @@
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   Box,
   Button,
@@ -36,9 +37,15 @@ export default function LoginPage() {
 
   return (
     <Box maxWidth={400} mx="auto" mt={8}>
-      <Typography variant="h5" gutterBottom>
-        Tiger Schedule
-      </Typography>
+      <Box display="flex" justifyContent="center" mb={3}>
+        <Image
+          src="/logo_img.png"
+          alt="Brand Logo"
+          width={200}
+          height={80}
+          style={{ objectFit: 'contain' }}
+        />
+      </Box>
 
       <Stack spacing={2}>
         <TextField

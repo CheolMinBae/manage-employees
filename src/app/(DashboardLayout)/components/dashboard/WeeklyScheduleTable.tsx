@@ -130,9 +130,16 @@ export default function WeeklyScheduleTable({
     return result;
   };
 
-  const getShiftsForDate = (shifts: DailyShift[], date: string) => {
+  const getShiftsForDate = (shifts: DailyShift[], date: string): ShiftSlot[] => {
     const entry = shifts.find((s) => s.date === date);
-    return entry?.slots ?? [];
+    const slots = entry?.slots ?? [];
+    
+    // 시간순으로 정렬 (start 시간 기준 오름차순)
+    return slots.sort((a, b) => {
+      const timeA = a.start.replace(':', '');
+      const timeB = b.start.replace(':', '');
+      return parseInt(timeA) - parseInt(timeB);
+    });
   };
 
   const getColorByStatus = (status: ShiftSlot['status']) => {
@@ -448,6 +455,9 @@ export default function WeeklyScheduleTable({
         setStartTime={setStartTime}
         setEndTime={setEndTime}
         onApprove={handleApprove}
+        selectedDate={selectedShiftInfo?.date}
+        userId={selectedShiftInfo?.userId}
+        currentScheduleId={selectedShiftInfo?._id}
       />
 
       <ApprovalDialog
@@ -463,6 +473,8 @@ export default function WeeklyScheduleTable({
         setStartTime={setStartTime}
         setEndTime={setEndTime}
         onApprove={handleAddSchedule}
+        selectedDate={selectedDateInfo?.date}
+        userId={selectedDateInfo?.userId}
       />
 
       {selectedShiftInfo && (
