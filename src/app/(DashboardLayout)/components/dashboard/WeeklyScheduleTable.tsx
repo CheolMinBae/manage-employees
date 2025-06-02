@@ -96,9 +96,7 @@ export default function WeeklyScheduleTable({
     if (userPosition === 'employee') {
       return scheduleData.filter((u) => u.name === userName);
     }
-    const filtered = scheduleData.filter((u) =>
-      ['employee', 'barista'].includes(u.position?.toLowerCase())
-    );
+    const filtered = scheduleData;
     if (!keyword.trim()) return filtered;
     return filtered.filter((u) => {
       const target = String(u[filterType]).toLowerCase();
