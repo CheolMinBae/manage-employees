@@ -18,6 +18,7 @@ interface Props {
   setStartTime: (val: Dayjs | null) => void;
   setEndTime: (val: Dayjs | null) => void;
   onApprove: (sessions?: WorkSession[]) => void;
+  onDelete?: () => void;
   selectedDate?: string;
   userId?: string;
   currentScheduleId?: string;
@@ -39,6 +40,7 @@ const ApprovalDialog = ({
   startTime, endTime,
   setStartTime, setEndTime,
   onApprove,
+  onDelete,
   selectedDate,
   userId,
   currentScheduleId
@@ -145,6 +147,13 @@ const ApprovalDialog = ({
     }
   };
 
+  // Handle deletion
+  const handleDelete = () => {
+    if (onDelete) {
+      onDelete();
+    }
+  };
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Work Time Approval</DialogTitle>
@@ -240,6 +249,15 @@ const ApprovalDialog = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
+        {onDelete && currentScheduleId && (
+          <Button 
+            variant="outlined" 
+            color="error" 
+            onClick={handleDelete}
+          >
+            Delete
+          </Button>
+        )}
         <Button variant="contained" onClick={handleApprove}>
           Approve
         </Button>

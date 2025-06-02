@@ -2,8 +2,9 @@
 
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Stack, Typography, Box
+  Button, Stack, Typography, Box, Chip, IconButton, Alert
 } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { TimePicker } from '@mui/x-date-pickers';
 import { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
@@ -40,6 +41,7 @@ export default function EditShiftDialog({
   const [editStart, setEditStart] = useState<Dayjs | null>(null);
   const [editEnd, setEditEnd] = useState<Dayjs | null>(null);
   const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (slot) {
@@ -103,19 +105,103 @@ export default function EditShiftDialog({
   const handleEditSave = async () => {
     if (!slot || !editStart || !editEnd) return;
 
-    await fetch('/api/schedules', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: slot._id,
-        start: editStart.format('HH:mm'),
-        end: editEnd.format('HH:mm'),
-        approved: slot.approved || false,
-      }),
-    });
+    setLoading(true);
+    try {
+      await fetch('/api/schedules', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: slot._id,
+          start: editStart.format('HH:mm'),
+          end: editEnd.format('HH:mm'),
+          approved: slot.approved || false,
+        }),
+      });
 
-    onClose();
-    fetchSchedules();
+      onClose();
+      fetchSchedules();
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      alert('Failed to update schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCurrentSchedule = async () => {
+    if (!slot) return;
+
+    if (!confirm('Are you sure you want to delete this schedule?')) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/schedules?id=${slot._id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        onClose();
+        fetchSchedules();
+      } else {
+        throw new Error('Failed to delete schedule');
+      }
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      alert('Failed to delete schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteExistingSchedule = async (scheduleId: string) => {
+    if (!confirm('Are you sure you want to delete this existing schedule?')) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/schedules?id=${scheduleId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Refresh existing schedules
+        setExistingSchedules(prev => prev.filter(s => s._id !== scheduleId));
+        fetchSchedules();
+      } else {
+        throw new Error('Failed to delete existing schedule');
+      }
+    } catch (error) {
+      console.error('Error deleting existing schedule:', error);
+      alert('Failed to delete existing schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMakeOff = async () => {
+    if (!slot) return;
+
+    if (!confirm(`Are you sure you want to delete ALL schedules for ${slot.date}? This will make the day OFF.`)) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/schedules?userId=${slot.userId}&date=${slot.date}&deleteAll=true`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(result.message || 'All schedules deleted successfully');
+        onClose();
+        fetchSchedules();
+      } else {
+        throw new Error('Failed to delete all schedules');
+      }
+    } catch (error) {
+      console.error('Error deleting all schedules:', error);
+      alert('Failed to delete all schedules');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -123,30 +209,79 @@ export default function EditShiftDialog({
       <DialogTitle>Edit Shift</DialogTitle>
       <DialogContent>
         <Stack spacing={2} mt={1}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Editing schedule for {slot?.date}
+          </Alert>
+
           <TimePicker
             label="Start Time"
             value={editStart}
             onChange={setEditStart}
             shouldDisableTime={shouldDisableTime}
+            disabled={loading}
           />
           <TimePicker
             label="End Time"
             value={editEnd}
             onChange={setEditEnd}
             shouldDisableTime={shouldDisableTime}
+            disabled={loading}
           />
+
           {existingSchedules.length > 0 && (
             <Box>
-              <Typography variant="caption" color="text.secondary">
-                Existing schedules: {existingSchedules.map(s => `${s.start}-${s.end}`).join(', ')}
+              <Typography variant="subtitle2" gutterBottom>
+                Other schedules on this day:
               </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+                {existingSchedules.map((schedule) => (
+                  <Chip
+                    key={schedule._id}
+                    label={`${schedule.start}-${schedule.end}`}
+                    variant="outlined"
+                    size="small"
+                    deleteIcon={<DeleteIcon />}
+                    onDelete={() => handleDeleteExistingSchedule(schedule._id)}
+                    disabled={loading}
+                  />
+                ))}
+              </Stack>
             </Box>
           )}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleEditSave}>Save</Button>
+        <Stack direction="row" spacing={1} width="100%" justifyContent="space-between">
+          <Box>
+            <Button 
+              onClick={handleMakeOff} 
+              color="error" 
+              variant="outlined"
+              disabled={loading}
+            >
+              Make OFF
+            </Button>
+          </Box>
+          <Box display="flex" gap={1}>
+            <Button 
+              onClick={handleDeleteCurrentSchedule} 
+              color="error"
+              disabled={loading}
+            >
+              Delete
+            </Button>
+            <Button onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button 
+              variant="contained" 
+              onClick={handleEditSave}
+              disabled={loading}
+            >
+              Save
+            </Button>
+          </Box>
+        </Stack>
       </DialogActions>
     </Dialog>
   );

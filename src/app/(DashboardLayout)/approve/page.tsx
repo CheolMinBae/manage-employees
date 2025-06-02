@@ -133,6 +133,27 @@ export default function ScheduleApprovalPage() {
     fetchAllSchedules();
   };
 
+  const handleDelete = async () => {
+    if (!selectedSlot) return;
+
+    try {
+      const response = await fetch(`/api/schedules?id=${selectedSlot._id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete schedule');
+      }
+
+      setOpenDialog(false);
+      setSelectedSlot(null);
+      fetchAllSchedules();
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      alert('Failed to delete schedule');
+    }
+  };
+
   useEffect(() => {
     fetchAllSchedules();
   }, []);
@@ -233,6 +254,7 @@ export default function ScheduleApprovalPage() {
           setStartTime={setStartTime}
           setEndTime={setEndTime}
           onApprove={handleApprove}
+          onDelete={handleDelete}
           selectedDate={selectedSlot?.date}
           userId={selectedSlot?.userId}
           currentScheduleId={selectedSlot?._id}

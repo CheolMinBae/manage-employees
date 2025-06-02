@@ -317,6 +317,27 @@ export default function WeeklyScheduleTable({
     }
   };
 
+  const handleDelete = async () => {
+    if (!selectedShiftInfo) return;
+
+    try {
+      const response = await fetch(`/api/schedules?id=${selectedShiftInfo._id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete schedule');
+      }
+
+      setApprovalOpen(false);
+      setSelectedShiftInfo(null);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      alert('Failed to delete schedule');
+    }
+  };
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -453,6 +474,7 @@ export default function WeeklyScheduleTable({
         setStartTime={setStartTime}
         setEndTime={setEndTime}
         onApprove={handleApprove}
+        onDelete={handleDelete}
         selectedDate={selectedShiftInfo?.date}
         userId={selectedShiftInfo?.userId}
         currentScheduleId={selectedShiftInfo?._id}

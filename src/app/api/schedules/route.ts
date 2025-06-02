@@ -12,6 +12,46 @@ import {
 } from 'date-fns';
 import { WEEK_OPTIONS } from '@/constants/dateConfig';
 
+// 시간 중복 검사 함수
+function isTimeOverlapping(start1: string, end1: string, start2: string, end2: string): boolean {
+  const [start1Hour, start1Min] = start1.split(':').map(Number);
+  const [end1Hour, end1Min] = end1.split(':').map(Number);
+  const [start2Hour, start2Min] = start2.split(':').map(Number);
+  const [end2Hour, end2Min] = end2.split(':').map(Number);
+
+  const start1Minutes = start1Hour * 60 + start1Min;
+  const end1Minutes = end1Hour * 60 + end1Min;
+  const start2Minutes = start2Hour * 60 + start2Min;
+  const end2Minutes = end2Hour * 60 + end2Min;
+
+  // 두 시간대가 겹치는지 확인
+  return start1Minutes < end2Minutes && start2Minutes < end1Minutes;
+}
+
+// 중복 스케줄 검사 함수
+async function checkScheduleConflict(userId: string, date: string, start: string, end: string, excludeId?: string) {
+  const existingSchedules = await Schedule.find({
+    userId,
+    date,
+    ...(excludeId && { _id: { $ne: excludeId } }) // 수정 시 현재 스케줄 제외
+  });
+
+  for (const schedule of existingSchedules) {
+    if (isTimeOverlapping(start, end, schedule.start, schedule.end)) {
+      return {
+        conflict: true,
+        conflictingSchedule: {
+          id: schedule._id,
+          start: schedule.start,
+          end: schedule.end
+        }
+      };
+    }
+  }
+
+  return { conflict: false, conflictingSchedule: null };
+}
+
 export async function GET(req: NextRequest) {
   try {
     await dbConnect();
@@ -145,6 +185,34 @@ export async function POST(req: NextRequest) {
   try {
     await dbConnect();
     const data = await req.json();
+    
+    // 필수 필드 검증
+    if (!data.userId || !data.date || !data.start || !data.end) {
+      return NextResponse.json(
+        { error: 'Missing required fields: userId, date, start, end' },
+        { status: 400 }
+      );
+    }
+
+    // 시간 중복 검사
+    const conflictCheck = await checkScheduleConflict(
+      data.userId,
+      data.date,
+      data.start,
+      data.end
+    );
+
+    if (conflictCheck.conflict) {
+      return NextResponse.json(
+        { 
+          error: 'Schedule conflict detected',
+          message: `Time ${data.start}-${data.end} overlaps with existing schedule ${conflictCheck.conflictingSchedule!.start}-${conflictCheck.conflictingSchedule!.end}`,
+          conflictingSchedule: conflictCheck.conflictingSchedule
+        },
+        { status: 400 }
+      );
+    }
+
     const newSchedule = await Schedule.create(data);
     return NextResponse.json(newSchedule);
   } catch (error: any) {
@@ -161,13 +229,49 @@ export async function PUT(req: NextRequest) {
     await dbConnect();
     const data = await req.json();
     const { id, ...updates } = data;
-    const updated = await Schedule.findByIdAndUpdate(id, updates, { new: true });
-    if (!updated) {
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Missing schedule ID' },
+        { status: 400 }
+      );
+    }
+
+    // 기존 스케줄 조회
+    const existingSchedule = await Schedule.findById(id);
+    if (!existingSchedule) {
       return NextResponse.json(
         { error: 'Schedule not found' },
         { status: 404 }
       );
     }
+
+    // 시간이 변경되는 경우에만 중복 검사
+    if (updates.start || updates.end) {
+      const newStart = updates.start || existingSchedule.start;
+      const newEnd = updates.end || existingSchedule.end;
+
+      const conflictCheck = await checkScheduleConflict(
+        existingSchedule.userId.toString(),
+        existingSchedule.date,
+        newStart,
+        newEnd,
+        id // 현재 스케줄은 검사에서 제외
+      );
+
+      if (conflictCheck.conflict) {
+        return NextResponse.json(
+          { 
+            error: 'Schedule conflict detected',
+            message: `Time ${newStart}-${newEnd} overlaps with existing schedule ${conflictCheck.conflictingSchedule!.start}-${conflictCheck.conflictingSchedule!.end}`,
+            conflictingSchedule: conflictCheck.conflictingSchedule
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const updated = await Schedule.findByIdAndUpdate(id, updates, { new: true });
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error('Error in PUT /api/schedules:', error);
@@ -183,9 +287,25 @@ export async function DELETE(req: NextRequest) {
     await dbConnect();
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-    if (!id)
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    const userId = searchParams.get('userId');
+    const date = searchParams.get('date');
+    const deleteAll = searchParams.get('deleteAll'); // 'true'이면 해당 날짜의 모든 스케줄 삭제
     
+    if (deleteAll === 'true' && userId && date) {
+      // 특정 사용자의 특정 날짜 모든 스케줄 삭제
+      const deleted = await Schedule.deleteMany({ userId, date });
+      return NextResponse.json({ 
+        success: true, 
+        deletedCount: deleted.deletedCount,
+        message: `Deleted ${deleted.deletedCount} schedules for ${date}` 
+      });
+    }
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    }
+    
+    // 단일 스케줄 삭제
     const deleted = await Schedule.findByIdAndDelete(id);
     if (!deleted) {
       return NextResponse.json(
