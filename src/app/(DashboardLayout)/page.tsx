@@ -112,6 +112,7 @@ export default function Dashboard() {
                   weekStart={weekStart}
                   onWeekChange={handleWeekChange}
                   weekRange={data.weekRange}
+                  onRefresh={fetchData}
                 />
               </Grid>
             </Grid>

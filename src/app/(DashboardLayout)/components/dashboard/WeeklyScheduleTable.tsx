@@ -47,6 +47,7 @@ interface WeeklyScheduleTableProps {
   scheduleData: UserSchedule[];
   weekStart: Date;
   onWeekChange: (dir: 'prev' | 'next') => void;
+  onRefresh?: () => void;
 }
 
 export default function WeeklyScheduleTable({
@@ -55,6 +56,7 @@ export default function WeeklyScheduleTable({
   scheduleData,
   weekStart,
   onWeekChange,
+  onRefresh,
 }: WeeklyScheduleTableProps) {
   const { data: session } = useSession();
   const userPosition = session?.user?.position;
@@ -225,7 +227,11 @@ export default function WeeklyScheduleTable({
       setSelectedDateInfo(null);
       setStartTime(null);
       setEndTime(null);
-      window.location.reload();
+      
+      // 데이터 새로고침
+      if (onRefresh) {
+        onRefresh();
+      }
     } catch (error) {
       console.error('Error creating schedule:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred.';
@@ -309,7 +315,11 @@ export default function WeeklyScheduleTable({
       }
 
       setApprovalOpen(false);
-      window.location.reload();
+      
+      // 데이터 새로고침
+      if (onRefresh) {
+        onRefresh();
+      }
     } catch (error) {
       console.error('Error approving schedule:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred.';
@@ -331,7 +341,11 @@ export default function WeeklyScheduleTable({
 
       setApprovalOpen(false);
       setSelectedShiftInfo(null);
-      window.location.reload();
+      
+      // 데이터 새로고침
+      if (onRefresh) {
+        onRefresh();
+      }
     } catch (error) {
       console.error('Error deleting schedule:', error);
       alert('Failed to delete schedule');
@@ -502,7 +516,7 @@ export default function WeeklyScheduleTable({
           open={editModalOpen}
           onClose={() => setEditModalOpen(false)}
           slot={selectedShiftInfo}
-          fetchSchedules={() => window.location.reload()}
+          fetchSchedules={() => onRefresh?.()}
         />
       )}
     </Box>
