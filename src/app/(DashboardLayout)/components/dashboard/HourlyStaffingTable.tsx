@@ -4,13 +4,18 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Typography, Paper, Box, Tooltip, Chip, Stack, IconButton, Snackbar, Alert,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem,
-  Select, FormControl, InputLabel, OutlinedInput
+  Select, FormControl, InputLabel, OutlinedInput, Popper, ClickAwayListener
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
-import { useEffect, useState } from 'react';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
+import { useEffect, useState, useRef } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 
 interface Employee {
@@ -164,6 +169,8 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<{ userId: string; name: string; hour: number } | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const datePickerRef = useRef<HTMLDivElement>(null);
   
   // 필터링 상태
   const [nameFilter, setNameFilter] = useState('');
@@ -306,6 +313,21 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     setSelectedDate(prevDate => 
       direction === 'prev' ? subDays(prevDate, 1) : addDays(prevDate, 1)
     );
+  };
+
+  const handleDatePickerToggle = () => {
+    setDatePickerOpen(!datePickerOpen);
+  };
+
+  const handleDatePickerClose = () => {
+    setDatePickerOpen(false);
+  };
+
+  const handleDateSelect = (newDate: dayjs.Dayjs | null) => {
+    if (newDate) {
+      setSelectedDate(newDate.toDate());
+      setDatePickerOpen(false);
+    }
   };
 
   const renderTooltipContent = (employees: Employee[]) => {
@@ -548,9 +570,27 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   >
                     <ArrowBackIosNewIcon fontSize="small" />
                   </IconButton>
-                  <Typography variant="h6">
-                    {formatDateHeader(data.date)}
-                  </Typography>
+                  <Box 
+                    ref={datePickerRef}
+                    sx={{ 
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      '&:hover': {
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                      }
+                    }}
+                    onClick={handleDatePickerToggle}
+                  >
+                    <CalendarTodayIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
+                    <Typography variant="h6">
+                      {formatDateHeader(data.date)}
+                    </Typography>
+                  </Box>
                   <IconButton 
                     size="small" 
                     onClick={() => handleDateChange('next')}
@@ -559,6 +599,29 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                     <ArrowForwardIosIcon fontSize="small" />
                   </IconButton>
                 </Box>
+
+                {/* Date Picker Popper */}
+                <Popper 
+                  open={datePickerOpen} 
+                  anchorEl={datePickerRef.current} 
+                  placement="bottom"
+                  sx={{ zIndex: 1300 }}
+                >
+                  <ClickAwayListener onClickAway={handleDatePickerClose}>
+                    <Paper sx={{ p: 1, mt: 1 }}>
+                      <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                          value={dayjs(selectedDate)}
+                          onChange={handleDateSelect}
+                          slotProps={{
+                            textField: { size: 'small' },
+                            popper: { sx: { zIndex: 1400 } }
+                          }}
+                        />
+                      </LocalizationProvider>
+                    </Paper>
+                  </ClickAwayListener>
+                </Popper>
               </TableCell>
               {data.hourlyData.map((hourData) => (
                 <TableCell key={hourData.hour} align="center" sx={{ minWidth: 40, px: 0.5 }}>
