@@ -12,6 +12,7 @@ import { startOfWeek, endOfWeek } from 'date-fns';
 import { WEEK_OPTIONS } from '@/constants/dateConfig';
 import FilterControls from '../components/approve/FilterControls';
 import ApprovalDialog from '../components/approve/ApprovalDialog';
+import EditShiftDialog from '../components/schedule/EditShiftDialog';
 
 dayjs.extend(isBetween);
 
@@ -36,6 +37,8 @@ export default function ScheduleApprovalPage() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [startTime, setStartTime] = useState<Dayjs | null>(null);
   const [endTime, setEndTime] = useState<Dayjs | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<TimeSlot | null>(null);
 
   const [selectedUsers, setSelectedUsers] = useState<string>('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -125,15 +128,6 @@ export default function ScheduleApprovalPage() {
     fetchAllSchedules();
   };
 
-  const handleReject = async (id: string) => {
-    await fetch('/api/schedules', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, approved: false }),
-    });
-    fetchAllSchedules();
-  };
-
   const handleDelete = async () => {
     if (!selectedSlot) return;
 
@@ -153,6 +147,11 @@ export default function ScheduleApprovalPage() {
       console.error('Error deleting schedule:', error);
       alert('Failed to delete schedule');
     }
+  };
+
+  const handleEditSchedule = (slot: TimeSlot) => {
+    setEditingSlot(slot);
+    setEditDialogOpen(true);
   };
 
   useEffect(() => {
@@ -188,7 +187,39 @@ export default function ScheduleApprovalPage() {
     return acc;
   }, {} as Record<string, TimeSlot[]>);
 
-  const selectedUserSchedules = selectedUser ? grouped[selectedUser] || [] : [];
+  // 전체 유저 목록 (필터링 없이)
+  const allUsersGrouped = useMemo(() => {
+    const userFilter = selectedUsers 
+      ? schedules.filter(s => s.name.toLowerCase().includes(selectedUsers.toLowerCase()))
+      : schedules;
+    
+    return userFilter.reduce((acc, curr) => {
+      if (!acc[curr.name]) acc[curr.name] = [];
+      acc[curr.name].push(curr);
+      return acc;
+    }, {} as Record<string, TimeSlot[]>);
+  }, [schedules, selectedUsers]);
+
+  // 선택된 유저의 스케줄만 날짜/상태 필터링 적용
+  const selectedUserSchedules = useMemo(() => {
+    if (!selectedUser) return [];
+    
+    const start = dayjs(dateRange[0].startDate).startOf('day');
+    const end = dayjs(dateRange[0].endDate).endOf('day');
+    
+    const userSchedules = schedules.filter(s => s.name === selectedUser);
+    
+    return userSchedules.filter(s => {
+      const matchStatus = selectedStatuses.length > 0
+        ? selectedStatuses.includes(s.approved ? 'Approved' : 'Pending')
+        : true;
+      const matchDate =
+        dateRange[0].startDate && dateRange[0].endDate
+          ? dayjs(s.date).isBetween(start, end, 'day', '[]')
+          : true;
+      return matchStatus && matchDate;
+    });
+  }, [schedules, selectedUser, selectedStatuses, dateRange]);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -209,9 +240,9 @@ export default function ScheduleApprovalPage() {
           <Grid item xs={12} md={4}>
             <Paper sx={{ height: '100%', overflow: 'auto' }}>
               <Box p={2}>
-                <Typography variant="h6" mb={2}>👥 Users ({Object.keys(grouped).length})</Typography>
+                <Typography variant="h6" mb={2}>👥 Users ({Object.keys(allUsersGrouped).length})</Typography>
                 <Stack spacing={1}>
-                  {Object.keys(grouped).map((userName) => (
+                  {Object.keys(allUsersGrouped).map((userName) => (
                     <Paper
                       key={userName}
                       sx={{
@@ -227,7 +258,7 @@ export default function ScheduleApprovalPage() {
                     >
                       <Typography fontWeight="bold">{userName}</Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {grouped[userName].length} schedule(s)
+                        {allUsersGrouped[userName].length} total schedule(s)
                       </Typography>
                     </Paper>
                   ))}
@@ -284,10 +315,9 @@ export default function ScheduleApprovalPage() {
                               variant="outlined"
                               color="error"
                               size="small"
-                              disabled={!slot.approved}
-                              onClick={() => handleReject(slot._id)}
+                              onClick={() => handleEditSchedule(slot)}
                             >
-                              Reject
+                              Edit
                             </Button>
                           </Stack>
                         </Paper>
@@ -325,6 +355,16 @@ export default function ScheduleApprovalPage() {
           selectedDate={selectedSlot?.date}
           userId={selectedSlot?.userId}
           currentScheduleId={selectedSlot?._id}
+        />
+
+        <EditShiftDialog
+          open={editDialogOpen}
+          onClose={() => {
+            setEditDialogOpen(false);
+            setEditingSlot(null);
+          }}
+          slot={editingSlot}
+          fetchSchedules={fetchAllSchedules}
         />
       </Box>
     </LocalizationProvider>
