@@ -138,7 +138,7 @@ export default function EmployeeManagement() {
         case 'position':
           return employee.position.toLowerCase() === value;
         case 'userType':
-          return employee.userType.toLowerCase() === value;
+          return employee.userType.toLowerCase().includes(value);
         case 'corp':
           return employee.corp.toLowerCase() === value;
         default:
@@ -155,8 +155,8 @@ export default function EmployeeManagement() {
 
   // 검색 타입에 따른 입력 필드 렌더링
   const renderSearchInput = () => {
-    const inputTypes = ['name', 'email', 'eid'];
-    const selectTypes = ['position', 'userType', 'corp'];
+    const inputTypes = ['name', 'email', 'eid', 'userType'];
+    const selectTypes = ['position', 'corp'];
 
     if (inputTypes.includes(searchType)) {
       return (
@@ -185,8 +185,6 @@ export default function EmployeeManagement() {
           { value: 'employee', label: 'Employee' },
           { value: 'admin', label: 'Admin' }
         ];
-      } else if (searchType === 'userType') {
-        options = userRoles.map(role => ({ value: role.key, label: role.name }));
       } else if (searchType === 'corp') {
         options = corporations.map(corp => ({ value: corp.name, label: corp.name }));
       }
@@ -383,14 +381,8 @@ export default function EmployeeManagement() {
               <TableRow key={employee._id}>
                 <TableCell>{employee.name}</TableCell>
                 <TableCell>{employee.email}</TableCell>
-                <TableCell>{employee.userType}</TableCell>
-                <TableCell>
-                  <Chip 
-                    label={employee.position} 
-                    color={employee.position === 'admin' ? 'primary' : 'default'}
-                    size="small"
-                  />
-                </TableCell>
+                <TableCell>{employee.position}</TableCell>
+                <TableCell>{employee.userType.toLowerCase()}</TableCell>
                 <TableCell>{employee.corp}</TableCell>
                 <TableCell>{employee.eid}</TableCell>
                 <TableCell>{employee.category}</TableCell>
@@ -464,8 +456,8 @@ export default function EmployeeManagement() {
               fullWidth
             >
               {userRoles.map((role) => (
-                <MenuItem key={role._id} value={role.key}>
-                  {role.name}
+                <MenuItem key={role._id} value={role.key.toLowerCase()}>
+                  {role.name.toLowerCase()}
                 </MenuItem>
               ))}
             </TextField>
