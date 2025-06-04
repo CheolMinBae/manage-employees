@@ -15,6 +15,7 @@ import {
   Popper,
   Paper,
   ClickAwayListener,
+  TextField,
 } from '@mui/material';
 import { DateRange } from 'react-date-range';
 import { format } from 'date-fns';
@@ -67,22 +68,14 @@ const FilterControls = ({
           <Typography variant="caption" fontWeight="bold" mb={0.5}>
             👤 User
           </Typography>
-          <FormControl fullWidth size="small">
-            <Select
-              value={selectedUsers}
-              onChange={(e) => setSelectedUsers(e.target.value)}
-              input={<OutlinedInput />}
-            >
-              <MenuItem value="">
-                <em>All</em>
-              </MenuItem>
-              {users.map((name) => (
-                <MenuItem key={name} value={name}>
-                  {name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search user name..."
+            value={selectedUsers}
+            onChange={(e) => setSelectedUsers(e.target.value)}
+            variant="outlined"
+          />
         </Box>
       </Grid>
 

@@ -39,6 +39,7 @@ export default function ScheduleApprovalPage() {
 
   const [selectedUsers, setSelectedUsers] = useState<string>('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string>('');
   const [dateRange, setDateRange] = useState([
     {
       startDate: startOfWeek(new Date(), WEEK_OPTIONS),
@@ -167,7 +168,9 @@ export default function ScheduleApprovalPage() {
     const end = dayjs(dateRange[0].endDate).endOf('day');
 
     return schedules.filter(s => {
-      const matchUser = selectedUsers ? s.name === selectedUsers : true;
+      const matchUser = selectedUsers 
+        ? s.name.toLowerCase().includes(selectedUsers.toLowerCase()) 
+        : true;
       const matchStatus = selectedStatuses.length > 0
         ? selectedStatuses.includes(s.approved ? 'Approved' : 'Pending')
         : true;
@@ -185,6 +188,8 @@ export default function ScheduleApprovalPage() {
     return acc;
   }, {} as Record<string, TimeSlot[]>);
 
+  const selectedUserSchedules = selectedUser ? grouped[selectedUser] || [] : [];
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box p={4}>
@@ -200,51 +205,113 @@ export default function ScheduleApprovalPage() {
           setSelectedStatuses={setSelectedStatuses}
         />
 
-        {Object.entries(grouped).map(([name, userSchedules]) => (
-          <Box key={name} mb={4}>
-            <Typography variant="h6" mb={1}>👤 User: {name}</Typography>
-            <Stack spacing={1}>
-              {userSchedules.map((slot) => (
-                <Paper key={slot._id} sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box>
-                    <Typography fontWeight="bold">
-                      date: {dayjs(slot.date).format('MMM D')}
+        <Grid container spacing={3} sx={{ height: 'calc(100vh - 300px)' }}>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ height: '100%', overflow: 'auto' }}>
+              <Box p={2}>
+                <Typography variant="h6" mb={2}>👥 Users ({Object.keys(grouped).length})</Typography>
+                <Stack spacing={1}>
+                  {Object.keys(grouped).map((userName) => (
+                    <Paper
+                      key={userName}
+                      sx={{
+                        p: 2,
+                        cursor: 'pointer',
+                        backgroundColor: selectedUser === userName ? '#e3f2fd' : 'white',
+                        border: selectedUser === userName ? '2px solid #1976d2' : '1px solid #e0e0e0',
+                        '&:hover': {
+                          backgroundColor: selectedUser === userName ? '#e3f2fd' : '#f5f5f5',
+                        }
+                      }}
+                      onClick={() => setSelectedUser(userName)}
+                    >
+                      <Typography fontWeight="bold">{userName}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {grouped[userName].length} schedule(s)
+                      </Typography>
+                    </Paper>
+                  ))}
+                </Stack>
+              </Box>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} md={8}>
+            <Paper sx={{ height: '100%', overflow: 'auto' }}>
+              <Box p={2}>
+                {selectedUser ? (
+                  <>
+                    <Typography variant="h6" mb={2}>
+                      📅 {selectedUser}'s Schedules ({selectedUserSchedules.length})
                     </Typography>
-                    <Typography fontWeight="bold">
-                      time: {slot.start} ~ {slot.end}
+                    <Stack spacing={2}>
+                      {selectedUserSchedules.map((slot) => (
+                        <Paper 
+                          key={slot._id} 
+                          sx={{ 
+                            p: 2, 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            border: '1px solid #e0e0e0'
+                          }}
+                        >
+                          <Box>
+                            <Typography fontWeight="bold">
+                              📅 {dayjs(slot.date).format('MMM D, YYYY')}
+                            </Typography>
+                            <Typography fontWeight="bold" color="primary">
+                              🕐 {slot.start} ~ {slot.end}
+                            </Typography>
+                            <Chip
+                              label={slot.approved ? 'Approved' : 'Pending'}
+                              size="small"
+                              color={slot.approved ? 'success' : 'warning'}
+                              sx={{ mt: 1 }}
+                            />
+                          </Box>
+                          <Stack direction="row" spacing={1}>
+                            <Button
+                              variant="outlined"
+                              color="success"
+                              size="small"
+                              disabled={slot.approved}
+                              onClick={() => handleApproveConfirm(slot)}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              size="small"
+                              disabled={!slot.approved}
+                              onClick={() => handleReject(slot._id)}
+                            >
+                              Reject
+                            </Button>
+                          </Stack>
+                        </Paper>
+                      ))}
+                      {selectedUserSchedules.length === 0 && (
+                        <Box textAlign="center" py={4}>
+                          <Typography variant="body1" color="text.secondary">
+                            No schedules found for {selectedUser}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Stack>
+                  </>
+                ) : (
+                  <Box textAlign="center" py={8}>
+                    <Typography variant="h6" color="text.secondary">
+                      👈 Select a user from the left to view their schedules
                     </Typography>
-                    <Chip
-                      label={slot.approved ? 'Approved' : 'Pending'}
-                      size="small"
-                      color={slot.approved ? 'success' : 'warning'}
-                      sx={{ mt: 1 }}
-                    />
                   </Box>
-                  <Stack direction="row" spacing={1}>
-                    <Button
-                      variant="outlined"
-                      color="success"
-                      size="small"
-                      disabled={slot.approved}
-                      onClick={() => handleApproveConfirm(slot)}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="small"
-                      disabled={!slot.approved}
-                      onClick={() => handleReject(slot._id)}
-                    >
-                      Reject
-                    </Button>
-                  </Stack>
-                </Paper>
-              ))}
-            </Stack>
-          </Box>
-        ))}
+                )}
+              </Box>
+            </Paper>
+          </Grid>
+        </Grid>
 
         <ApprovalDialog
           open={openDialog}
