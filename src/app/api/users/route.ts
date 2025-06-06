@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@libs/mongodb';
 import SignupUser from '@models/SignupUser';
 import Schedule from '@models/Schedule';
+import bcrypt from 'bcryptjs';
 
 // GET: 모든 사용자 조회
 export async function GET() {
@@ -70,16 +71,46 @@ export async function PUT(req: Request) {
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
-    const { name, email, position, userType, corp, eid, category } = await req.json();
+    const { name, email, position, userType, corp, eid, category, password } = await req.json();
 
-    if (!id || !name || !email) {
+    if (!id) {
       return NextResponse.json(
-        { message: 'ID, name, and email are required.' },
+        { message: 'ID is required.' },
         { status: 400 }
       );
     }
 
     await connectDB();
+
+    // 패스워드만 업데이트하는 경우 (패스워드 리셋)
+    if (password && !name && !email) {
+      // 기본 패스워드로 리셋 (평문으로 저장하여 기존 로직과 일관성 유지)
+      const updatedUser = await SignupUser.findByIdAndUpdate(
+        id,
+        { 
+          password: password, // 평문으로 저장 (기본 패스워드)
+          isFirstLogin: true  // 패스워드 변경 필요 플래그 설정
+        },
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        return NextResponse.json(
+          { message: 'User not found.' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(updatedUser, { status: 200 });
+    }
+
+    // 일반적인 사용자 정보 업데이트
+    if (!name || !email) {
+      return NextResponse.json(
+        { message: 'Name and email are required.' },
+        { status: 400 }
+      );
+    }
 
     // 이메일 중복 검사 (자기 자신 제외)
     const existingUser = await SignupUser.findOne({ email, _id: { $ne: id } });

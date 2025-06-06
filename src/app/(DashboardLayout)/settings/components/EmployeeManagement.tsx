@@ -30,6 +30,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import LockResetIcon from '@mui/icons-material/LockReset';
 
 interface Employee {
   _id: string;
@@ -290,6 +291,28 @@ export default function EmployeeManagement() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleResetPassword = async (employeeId: string, employeeName: string) => {
+    if (confirm(`Are you sure you want to reset the password for ${employeeName}? The password will be set to "1234" and they will need to change it on their next login.`)) {
+      try {
+        const res = await fetch(`/api/users?id=${employeeId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: '1234' })
+        });
+
+        if (res.ok) {
+          alert(`Password for ${employeeName} has been reset to "1234". They will be prompted to change it on their next login.`);
+        } else {
+          const errorData = await res.json();
+          alert(`Failed to reset password: ${errorData.message}`);
+        }
+      } catch (error) {
+        console.error('Failed to reset password:', error);
+        alert('Failed to reset password. Please try again.');
+      }
+    }
+  };
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
@@ -489,10 +512,26 @@ export default function EmployeeManagement() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">
-            {editingEmployee ? 'Update' : 'Create'}
-          </Button>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+            <Box>
+              {editingEmployee && (
+                <Button 
+                  onClick={() => handleResetPassword(editingEmployee._id, editingEmployee.name)}
+                  variant="outlined"
+                  color="warning"
+                  startIcon={<LockResetIcon />}
+                >
+                  Reset Password
+                </Button>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+              <Button onClick={handleSave} variant="contained">
+                {editingEmployee ? 'Update' : 'Create'}
+              </Button>
+            </Box>
+          </Box>
         </DialogActions>
       </Dialog>
     </Box>
