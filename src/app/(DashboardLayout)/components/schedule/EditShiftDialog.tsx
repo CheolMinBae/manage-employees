@@ -2,13 +2,15 @@
 
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Stack, Typography, Box, Chip, IconButton, Alert
+  Button, Stack, Typography, Box, Chip, IconButton, Alert,
+  Switch, FormControlLabel, Select, MenuItem, FormControl, InputLabel, Divider
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { TimePicker } from '@mui/x-date-pickers';
 import { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 
 interface TimeSlot {
   _id: string;
@@ -25,6 +27,16 @@ interface ExistingSchedule {
   end: string;
 }
 
+interface ScheduleTemplate {
+  _id: string;
+  name: string;
+  displayName: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  order: number;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -38,10 +50,18 @@ export default function EditShiftDialog({
   slot,
   fetchSchedules,
 }: Props) {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.position === 'admin';
+  
   const [editStart, setEditStart] = useState<Dayjs | null>(null);
   const [editEnd, setEditEnd] = useState<Dayjs | null>(null);
   const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // 템플릿 관련 상태
+  const [useTemplate, setUseTemplate] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
 
   useEffect(() => {
     if (slot) {
@@ -75,6 +95,36 @@ export default function EditShiftDialog({
     }
   }, [open, slot]);
 
+  // Reset template states when dialog opens
+  useEffect(() => {
+    if (open) {
+      setUseTemplate(false);
+      setSelectedTemplate('');
+    }
+  }, [open]);
+
+  // Fetch templates (admin only)
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      if (!isAdmin) return;
+
+      try {
+        const response = await fetch('/api/schedule-templates');
+        if (response.ok) {
+          const data = await response.json();
+          const activeTemplates = data.filter((template: ScheduleTemplate) => template.isActive);
+          setTemplates(activeTemplates.sort((a: ScheduleTemplate, b: ScheduleTemplate) => a.order - b.order));
+        }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      }
+    };
+
+    if (open && isAdmin) {
+      fetchTemplates();
+    }
+  }, [open, isAdmin]);
+
   // Check if a time conflicts with existing schedules
   const isTimeConflicted = (time: Dayjs) => {
     return existingSchedules.some(schedule => {
@@ -102,7 +152,64 @@ export default function EditShiftDialog({
     }
   };
 
+  const handleTemplateSubmit = async () => {
+    if (!selectedTemplate || !slot) return;
+
+    const template = templates.find(t => t._id === selectedTemplate);
+    if (!template) return;
+
+    setLoading(true);
+    try {
+      // 1. 해당 날짜의 모든 기존 스케줄 삭제
+      const existingSchedulesResponse = await fetch(`/api/schedules?userId=${slot.userId}&date=${slot.date}`);
+      if (existingSchedulesResponse.ok) {
+        const existingSchedules = await existingSchedulesResponse.json();
+        
+        // 기존 스케줄들 삭제
+        await Promise.all(
+          existingSchedules.map((schedule: any) =>
+            fetch(`/api/schedules?id=${schedule._id}`, {
+              method: 'DELETE',
+            })
+          )
+        );
+      }
+
+      // 2. 템플릿으로 새 스케줄 생성
+      const newSchedule = {
+        userId: slot.userId,
+        date: slot.date,
+        start: template.startTime,
+        end: template.endTime,
+        approved: true, // admin이 템플릿으로 생성하면 자동 승인
+      };
+
+      const response = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSchedule),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create schedule from template');
+      }
+
+      onClose();
+      fetchSchedules();
+    } catch (error) {
+      console.error('Error applying template:', error);
+      alert('템플릿 적용 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEditSave = async () => {
+    if (useTemplate) {
+      await handleTemplateSubmit();
+      return;
+    }
+
     if (!slot || !editStart || !editEnd) return;
 
     setLoading(true);
@@ -213,6 +320,60 @@ export default function EditShiftDialog({
             Editing schedule for {slot?.date}
           </Alert>
 
+          {/* Admin Template Selection */}
+          {isAdmin && (
+            <Box sx={{ mb: 3 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={useTemplate}
+                    onChange={(e) => {
+                      setUseTemplate(e.target.checked);
+                      if (!e.target.checked) {
+                        setSelectedTemplate('');
+                      }
+                    }}
+                  />
+                }
+                label="Force Schedule Templates 사용"
+              />
+              
+              {useTemplate && (
+                <Box sx={{ mt: 2 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>스케줄 템플릿 선택</InputLabel>
+                    <Select
+                      value={selectedTemplate}
+                      label="스케줄 템플릿 선택"
+                      onChange={(e) => setSelectedTemplate(e.target.value)}
+                    >
+                      {templates.map((template) => (
+                        <MenuItem key={template._id} value={template._id}>
+                          {template.displayName} ({template.startTime} - {template.endTime})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  
+                                      {selectedTemplate && (
+                      <Alert severity="warning" sx={{ mt: 2 }}>
+                        <Typography variant="body2">
+                          <strong>Warning:</strong> Applying a template will delete all existing schedules for that date 
+                          and replace them with the selected template.
+                        </Typography>
+                      </Alert>
+                    )}
+                </Box>
+              )}
+              
+              <Divider sx={{ my: 3 }} />
+            </Box>
+          )}
+
+          {/* Manual Edit (hidden when using template) */}
+          {!useTemplate && (
+            <>
+
           <TimePicker
             label="Start Time"
             value={editStart}
@@ -248,6 +409,8 @@ export default function EditShiftDialog({
               </Stack>
             </Box>
           )}
+            </>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -276,9 +439,9 @@ export default function EditShiftDialog({
             <Button 
               variant="contained" 
               onClick={handleEditSave}
-              disabled={loading}
+              disabled={loading || (useTemplate && !selectedTemplate)}
             >
-              Save
+              {useTemplate ? 'Apply Template' : 'Save'}
             </Button>
           </Box>
         </Stack>

@@ -4,7 +4,8 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Typography, Paper, Box, Tooltip, Chip, Stack, IconButton, Snackbar, Alert,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem,
-  Select, FormControl, InputLabel, OutlinedInput, Popper, ClickAwayListener
+  Select, FormControl, InputLabel, OutlinedInput, Popper, ClickAwayListener,
+  Switch, FormControlLabel, Divider
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -17,6 +18,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import { useEffect, useState, useRef } from 'react';
 import { format, addDays, subDays } from 'date-fns';
+import { useSession } from 'next-auth/react';
 
 interface Employee {
   name: string;
@@ -57,17 +59,47 @@ interface HourlyStaffingTableProps {
   initialDate?: Date;
 }
 
+interface ScheduleTemplate {
+  _id: string;
+  name: string;
+  displayName: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  order: number;
+}
+
 interface TimeSelectionDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (startTime: string, endTime: string) => void;
+  onTemplateConfirm?: (templateId: string) => void;
   employeeName: string;
   selectedHour: number;
+  userId: string;
+  selectedDate: Date;
 }
 
-function TimeSelectionDialog({ open, onClose, onConfirm, employeeName, selectedHour }: TimeSelectionDialogProps) {
+function TimeSelectionDialog({ 
+  open, 
+  onClose, 
+  onConfirm, 
+  onTemplateConfirm, 
+  employeeName, 
+  selectedHour, 
+  userId, 
+  selectedDate 
+}: TimeSelectionDialogProps) {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.position === 'admin';
+  
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  
+  // 템플릿 관련 상태
+  const [useTemplate, setUseTemplate] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -75,8 +107,34 @@ function TimeSelectionDialog({ open, onClose, onConfirm, employeeName, selectedH
       const hourStr = selectedHour.toString().padStart(2, '0');
       setStartTime(`${hourStr}:00`);
       setEndTime(`${(selectedHour + 1).toString().padStart(2, '0')}:00`);
+      
+      // 템플릿 상태 초기화
+      setUseTemplate(false);
+      setSelectedTemplate('');
     }
   }, [open, selectedHour]);
+
+  // Fetch templates (admin only)
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      if (!isAdmin) return;
+
+      try {
+        const response = await fetch('/api/schedule-templates');
+        if (response.ok) {
+          const data = await response.json();
+          const activeTemplates = data.filter((template: ScheduleTemplate) => template.isActive);
+          setTemplates(activeTemplates.sort((a: ScheduleTemplate, b: ScheduleTemplate) => a.order - b.order));
+        }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      }
+    };
+
+    if (open && isAdmin) {
+      fetchTemplates();
+    }
+  }, [open, isAdmin]);
 
   const generateTimeOptions = () => {
     const options = [];
@@ -91,7 +149,44 @@ function TimeSelectionDialog({ open, onClose, onConfirm, employeeName, selectedH
 
   const timeOptions = generateTimeOptions();
 
+  const handleTemplateSubmit = async () => {
+    if (!selectedTemplate || !onTemplateConfirm) return;
+
+    const template = templates.find(t => t._id === selectedTemplate);
+    if (!template) return;
+
+    try {
+      // 해당 날짜의 기존 스케줄 삭제
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const existingSchedulesResponse = await fetch(`/api/schedules?userId=${userId}&date=${dateStr}`);
+      if (existingSchedulesResponse.ok) {
+        const existingSchedules = await existingSchedulesResponse.json();
+        
+        // 기존 스케줄들 삭제
+        await Promise.all(
+          existingSchedules.map((schedule: any) =>
+            fetch(`/api/schedules?id=${schedule._id}`, {
+              method: 'DELETE',
+            })
+          )
+        );
+      }
+
+      // 템플릿으로 새 스케줄 생성
+      await onConfirm(template.startTime, template.endTime);
+      onClose();
+    } catch (error) {
+      console.error('Error applying template:', error);
+      alert('템플릿 적용 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleConfirm = () => {
+    if (useTemplate) {
+      handleTemplateSubmit();
+      return;
+    }
+
     if (startTime && endTime && startTime < endTime) {
       onConfirm(startTime, endTime);
       onClose();
@@ -105,44 +200,101 @@ function TimeSelectionDialog({ open, onClose, onConfirm, employeeName, selectedH
     return `${hour - 12} PM`;
   };
 
+  const isFormValid = useTemplate ? !!selectedTemplate : (!!startTime && !!endTime && startTime < endTime);
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
         Add Shift for {employeeName} - {formatHour(selectedHour)}
       </DialogTitle>
       <DialogContent>
-        <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-          <TextField
-            select
-            label="Start Time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            fullWidth
-          >
-            {timeOptions.map((time) => (
-              <MenuItem key={time} value={time}>
-                {time}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="End Time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            fullWidth
-          >
-            {timeOptions.map((time) => (
-              <MenuItem key={time} value={time}>
-                {time}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Box>
-        {startTime && endTime && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Duration: {startTime} - {endTime}
-          </Typography>
+        {/* Admin Template Selection */}
+        {isAdmin && (
+          <Box sx={{ mb: 3 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={useTemplate}
+                  onChange={(e) => {
+                    setUseTemplate(e.target.checked);
+                    if (!e.target.checked) {
+                      setSelectedTemplate('');
+                    }
+                  }}
+                />
+              }
+              label="Force Schedule Templates 사용"
+            />
+            
+            {useTemplate && (
+              <Box sx={{ mt: 2 }}>
+                <FormControl fullWidth>
+                  <InputLabel>스케줄 템플릿 선택</InputLabel>
+                  <Select
+                    value={selectedTemplate}
+                    label="스케줄 템플릿 선택"
+                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                  >
+                    {templates.map((template) => (
+                      <MenuItem key={template._id} value={template._id}>
+                        {template.displayName} ({template.startTime} - {template.endTime})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                {selectedTemplate && (
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Warning:</strong> Applying a template will delete all existing schedules for that date 
+                      and replace them with the selected template.
+                    </Typography>
+                  </Alert>
+                )}
+              </Box>
+            )}
+            
+            <Divider sx={{ my: 3 }} />
+          </Box>
+        )}
+
+        {/* Manual Time Selection (hidden when using template) */}
+        {!useTemplate && (
+          <Box>
+            <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+              <TextField
+                select
+                label="Start Time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                fullWidth
+              >
+                {timeOptions.map((time) => (
+                  <MenuItem key={time} value={time}>
+                    {time}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="End Time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                fullWidth
+              >
+                {timeOptions.map((time) => (
+                  <MenuItem key={time} value={time}>
+                    {time}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
+            {startTime && endTime && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                Duration: {startTime} - {endTime}
+              </Typography>
+            )}
+          </Box>
         )}
       </DialogContent>
       <DialogActions>
@@ -150,9 +302,9 @@ function TimeSelectionDialog({ open, onClose, onConfirm, employeeName, selectedH
         <Button 
           onClick={handleConfirm} 
           variant="contained"
-          disabled={!startTime || !endTime || startTime >= endTime}
+          disabled={!isFormValid}
         >
-          Add Shift
+          {useTemplate ? 'Apply Template' : 'Add Shift'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -769,6 +921,8 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           onConfirm={handleAddSchedule}
           employeeName={selectedEmployee.name}
           selectedHour={selectedEmployee.hour}
+          userId={selectedEmployee.userId}
+          selectedDate={selectedDate}
         />
       )}
 

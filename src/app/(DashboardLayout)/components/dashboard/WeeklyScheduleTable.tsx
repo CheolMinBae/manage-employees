@@ -13,6 +13,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import { format, parseISO } from 'date-fns';
 import ApprovalDialog from '@/app/(DashboardLayout)/components/approve/ApprovalDialog';
 import EditShiftDialog from '@/app/(DashboardLayout)/components/schedule/EditShiftDialog';
+import AddShiftDialog from '@/app/(DashboardLayout)/components/schedule/AddShiftDialog';
+import SimpleAddShiftDialog from '@/app/(DashboardLayout)/components/schedule/SimpleAddShiftDialog';
 
 interface ShiftSlot {
   _id: string;
@@ -78,6 +80,7 @@ export default function WeeklyScheduleTable({
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addScheduleOpen, setAddScheduleOpen] = useState(false);
+  const [simpleAddOpen, setSimpleAddOpen] = useState(false);
   const [startTime, setStartTime] = useState<Dayjs | null>(null);
   const [endTime, setEndTime] = useState<Dayjs | null>(null);
   const [selectedShiftInfo, setSelectedShiftInfo] = useState<{
@@ -193,7 +196,9 @@ export default function WeeklyScheduleTable({
     });
     setStartTime(null);
     setEndTime(null);
-    setAddScheduleOpen(true);
+    
+    // Use SimpleAddShiftDialog for OFF clicks
+    setSimpleAddOpen(true);
   };
 
   const handleAddSchedule = async () => {
@@ -352,6 +357,28 @@ export default function WeeklyScheduleTable({
     }
   };
 
+  // AddShiftDialog에 전달할 기존 스케줄 데이터 생성
+  const getExistingShiftsForUser = (userId: string) => {
+    const user = scheduleData.find(u => u.userId === userId);
+    if (!user) return [];
+    
+    const existingShifts: { date: string; start: string; end: string; userId: string }[] = [];
+    user.shifts.forEach(dailyShift => {
+      dailyShift.slots.forEach(slot => {
+        if (slot.status === 'approved') {
+          existingShifts.push({
+            date: dailyShift.date,
+            start: slot.start,
+            end: slot.end,
+            userId: userId
+          });
+        }
+      });
+    });
+    
+    return existingShifts;
+  };
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -494,22 +521,39 @@ export default function WeeklyScheduleTable({
         currentScheduleId={selectedShiftInfo?._id}
       />
 
-      <ApprovalDialog
-        open={addScheduleOpen}
-        onClose={() => {
-          setAddScheduleOpen(false);
-          setSelectedDateInfo(null);
-          setStartTime(null);
-          setEndTime(null);
-        }}
-        startTime={startTime}
-        endTime={endTime}
-        setStartTime={setStartTime}
-        setEndTime={setEndTime}
-        onApprove={handleAddSchedule}
-        selectedDate={selectedDateInfo?.date}
-        userId={selectedDateInfo?.userId}
-      />
+      {/* Admin uses AddShiftDialog, Employee uses ApprovalDialog */}
+      {userPosition === 'admin' ? (
+        <AddShiftDialog
+          open={addScheduleOpen}
+          onClose={() => {
+            setAddScheduleOpen(false);
+            setSelectedDateInfo(null);
+            setStartTime(null);
+            setEndTime(null);
+          }}
+          selectedDate={selectedDateInfo?.date ? dayjs(selectedDateInfo.date) : null}
+          userId={selectedDateInfo?.userId || ''}
+          existingShifts={selectedDateInfo ? getExistingShiftsForUser(selectedDateInfo.userId) : []}
+          fetchSchedules={() => onRefresh?.()}
+        />
+      ) : (
+        <ApprovalDialog
+          open={addScheduleOpen}
+          onClose={() => {
+            setAddScheduleOpen(false);
+            setSelectedDateInfo(null);
+            setStartTime(null);
+            setEndTime(null);
+          }}
+          startTime={startTime}
+          endTime={endTime}
+          setStartTime={setStartTime}
+          setEndTime={setEndTime}
+          onApprove={handleAddSchedule}
+          selectedDate={selectedDateInfo?.date}
+          userId={selectedDateInfo?.userId}
+        />
+      )}
 
       {selectedShiftInfo && (
         <EditShiftDialog
@@ -519,6 +563,19 @@ export default function WeeklyScheduleTable({
           fetchSchedules={() => onRefresh?.()}
         />
       )}
+
+      {/* Simple Add Shift Dialog for OFF clicks */}
+      <SimpleAddShiftDialog
+        open={simpleAddOpen}
+        onClose={() => {
+          setSimpleAddOpen(false);
+          setSelectedDateInfo(null);
+        }}
+        selectedDate={selectedDateInfo?.date ? dayjs(selectedDateInfo.date) : null}
+        userId={selectedDateInfo?.userId || ''}
+        userName={selectedDateInfo?.userName || ''}
+        fetchSchedules={() => onRefresh?.()}
+      />
     </Box>
   );
 } 

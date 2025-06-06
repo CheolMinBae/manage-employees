@@ -13,6 +13,7 @@ import {
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import { useSession } from 'next-auth/react';
 
 interface ItemType {
@@ -45,11 +46,27 @@ const MSidebar = ({
     { title: 'Dashboard', icon: <DashboardOutlinedIcon />, href: '/' },
     { title: 'Schedule', icon: <GroupOutlinedIcon />, href: '/schedule' },
     { title: 'Approve', icon: <GroupOutlinedIcon />, href: '/approve' },
+    { title: 'Schedule Templates', icon: <ScheduleIcon />, href: '/schedule-templates', adminOnly: true },
     { title: 'Settings', icon: <SettingsOutlinedIcon />, href: '/settings' },
   ];
-  const adminMenus = ['Dashboard', 'Approve', 'Settings'];
-  const employeeMenus = ['Dashboard', 'Schedule'];
-  const menus = session?.user?.position === 'admin' ? navItems.filter(item => adminMenus.includes(item.title)) : navItems.filter(item => employeeMenus.includes(item.title));
+  
+  // admin 사용자인지 확인
+  const isAdmin = session?.user?.position === 'admin';
+  
+  // 권한에 따라 메뉴 필터링
+  const menus = navItems.filter(item => {
+    if (item.adminOnly && !isAdmin) {
+      return false;
+    }
+    
+    if (isAdmin) {
+      // admin은 모든 메뉴 접근 가능 (adminOnly 체크는 위에서 이미 함)
+      return true;
+    } else {
+      // employee는 Dashboard와 Schedule만 접근 가능
+      return ['Dashboard', 'Schedule'].includes(item.title);
+    }
+  });
 
   const content = (
     <Box
