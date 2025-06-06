@@ -15,6 +15,7 @@ export async function POST(req: Request) {
       corp,       // 'corp1' | 'corp2' | 'corp3'
       eid,
       category,
+      isFirstLogin, // register 페이지에서 전달되는 값
     } = await req.json();
 
     // 필수 필드 유효성 검사
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
       eid,
       category,
       status: 'approved',
+      isFirstLogin: isFirstLogin !== undefined ? isFirstLogin : false, // register를 통한 가입은 기본적으로 false
     });
 
     await newUser.save();
