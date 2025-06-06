@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
   Button,
@@ -43,8 +43,10 @@ export default function RegisterPage() {
   const [corporations, setCorporations] = useState<Corporation[]>([]);
   const [loading, setLoading] = useState(true);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [isGoogleSignup, setIsGoogleSignup] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,6 +65,20 @@ export default function RegisterPage() {
           setUserRoles(rolesData);
           setCorporations(corpsData);
 
+          // Google에서 온 정보가 있는지 확인
+          const emailFromGoogle = searchParams.get('email');
+          const nameFromGoogle = searchParams.get('name');
+
+          if (emailFromGoogle) {
+            setIsGoogleSignup(true);
+            setForm(prev => ({
+              ...prev,
+              email: emailFromGoogle,
+              name: nameFromGoogle || '',
+              password: 'google-oauth', // Google 로그인 사용자는 패스워드 불필요
+            }));
+          }
+
           // 기본값 설정
           if (rolesData.length > 0) {
             setForm(prev => ({ ...prev, userType: rolesData[0].key }));
@@ -79,7 +95,7 @@ export default function RegisterPage() {
     };
 
     fetchData();
-  }, []);
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -106,7 +122,14 @@ export default function RegisterPage() {
 
     if (res.ok) {
       alert('Registration successful');
-      router.push('/authentication/login');
+      
+      if (isGoogleSignup) {
+        // Google 회원가입의 경우 자동으로 Google 로그인 시도
+        window.location.href = '/api/auth/signin/google';
+      } else {
+        // 일반 회원가입의 경우 로그인 페이지로 이동
+        router.push('/authentication/login');
+      }
     } else {
       const data = await res.json();
       alert(`Registration failed: ${data.message || 'Server error'}`);
@@ -120,13 +143,33 @@ export default function RegisterPage() {
   return (
     <Box maxWidth={600} mx="auto" mt={4} px={2}>
       <Typography variant="h5" gutterBottom>
-        Sign Up
+        {isGoogleSignup ? 'Complete Your Google Sign Up' : 'Sign Up'}
       </Typography>
       
+      {isGoogleSignup && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          We found your Google account! Please complete your registration by filling out the additional information below.
+        </Alert>
+      )}
+      
       <Stack spacing={3}>
-        <TextField name="name" label="Name" value={form.name} onChange={handleChange} />
-        <TextField name="email" label="Email" value={form.email} onChange={handleChange} />
-        <TextField name="password" type="password" label="Password" value={form.password} onChange={handleChange} />
+        <TextField 
+          name="name" 
+          label="Name" 
+          value={form.name} 
+          onChange={handleChange}
+          disabled={isGoogleSignup && !!form.name}
+        />
+        <TextField 
+          name="email" 
+          label="Email" 
+          value={form.email} 
+          onChange={handleChange}
+          disabled={isGoogleSignup}
+        />
+        {!isGoogleSignup && (
+          <TextField name="password" type="password" label="Password" value={form.password} onChange={handleChange} />
+        )}
 
         <TextField
           name="userType"

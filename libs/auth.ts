@@ -57,23 +57,17 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile }) {
-      await dbConnect();
-
       if (account?.provider === 'google') {
+        await dbConnect();
         const existing = await SignupUser.findOne({ email: user.email });
 
         if (!existing) {
-          // 세션 전환 전에 register로 리다이렉트 (정보를 쿼리로 전달)
-          const registerUrl = new URL('/authentication/register', process.env.NEXTAUTH_URL);
-          registerUrl.searchParams.set('email', user.email || '');
-          registerUrl.searchParams.set('name', user.name || '');
-
-          // return false: 인증 중단 → register로 이동 (pages.newUser 대체)
-          throw new Error(`NEXT_REDIRECT:${registerUrl.toString()}`);
-        } else {
-          const homeUrl = new URL('/', process.env.NEXTAUTH_URL);
-          throw new Error(`NEXT_REDIRECT:${homeUrl.toString()}`);
+          // 사용자가 존재하지 않으면 signIn을 거부하고 register 페이지로 리다이렉트
+          return `/authentication/register?email=${encodeURIComponent(user.email || '')}&name=${encodeURIComponent(user.name || '')}`;
         }
+        
+        // 사용자가 존재하면 로그인 허용
+        return true;
       }
 
       return true;

@@ -35,6 +35,20 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      console.log('Google sign in clicked');
+      const result = await signIn('google', {
+        redirect: false,
+        callbackUrl: '/'
+      });
+      console.log('Google sign in result:', result);
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      alert('Google sign in failed: ' + error);
+    }
+  };
+
   return (
     <Box maxWidth={400} mx="auto" mt={8}>
       <Box display="flex" justifyContent="center" mb={3}>
@@ -68,10 +82,10 @@ export default function LoginPage() {
 
         <Button
           variant="outlined"
-          onClick={() => signIn('google')}
+          onClick={handleGoogleSignIn}
           startIcon={<FcGoogle />} // ✅ 아이콘 추가
         >
-          Sign in with Google
+          Start with Google
         </Button>
       </Stack>
 

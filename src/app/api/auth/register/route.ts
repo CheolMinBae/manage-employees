@@ -37,14 +37,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // 비밀번호 암호화
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // 비밀번호 암호화 (Google OAuth 사용자는 특별 처리)
+    let processedPassword;
+    if (password === 'google-oauth') {
+      // Google OAuth 사용자는 랜덤 패스워드 생성 (사용되지 않음)
+      processedPassword = await bcrypt.hash(Math.random().toString(36), 10);
+    } else {
+      processedPassword = await bcrypt.hash(password, 10);
+    }
 
     // 사용자 생성 및 저장
     const newUser = new SignupUser({
       name,
       email,
-      password: hashedPassword,
+      password: processedPassword,
       position,    // 저장: employee or admin
       userType,    // 저장: barista, supervisor, ...
       corp,        // 저장: corp1, ...
