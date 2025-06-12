@@ -52,27 +52,36 @@ const ApprovalDialog = ({
   ]);
   const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
 
-  // Fetch existing schedules for the selected date and user
+  // Reset state when dialog opens and fetch existing schedules
   useEffect(() => {
-    const fetchExistingSchedules = async () => {
-      if (!selectedDate || !userId) return;
-
-      try {
-        const response = await fetch(`/api/schedules?date=${selectedDate}&userId=${userId}`);
-        const data = await response.json();
-        
-        // Filter out current schedule being edited
-        const filtered = data.filter((schedule: any) => 
-          schedule._id !== currentScheduleId && schedule.approved
-        );
-        
-        setExistingSchedules(filtered);
-      } catch (error) {
-        console.error('Error fetching existing schedules:', error);
-      }
-    };
-
     if (open) {
+      // Reset all state when dialog opens
+      setIsSeparated(false);
+      setSessions([
+        { start: null, end: null },
+        { start: null, end: null }
+      ]);
+      setExistingSchedules([]);
+
+      // Fetch existing schedules for the selected date and user
+      const fetchExistingSchedules = async () => {
+        if (!selectedDate || !userId) return;
+
+        try {
+          const response = await fetch(`/api/schedules?date=${selectedDate}&userId=${userId}`);
+          const data = await response.json();
+          
+          // Filter out current schedule being edited
+          const filtered = data.filter((schedule: any) => 
+            schedule._id !== currentScheduleId && schedule.approved
+          );
+          
+          setExistingSchedules(filtered);
+        } catch (error) {
+          console.error('Error fetching existing schedules:', error);
+        }
+      };
+
       fetchExistingSchedules();
     }
   }, [open, selectedDate, userId, currentScheduleId]);

@@ -40,9 +40,9 @@ export default function ScheduleApprovalPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimeSlot | null>(null);
 
-  const [selectedUsers, setSelectedUsers] = useState<string>('');
+  const [userSearchFilter, setUserSearchFilter] = useState<string>('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string>('');
+  const [activeUser, setActiveUser] = useState<string>('');
   const [dateRange, setDateRange] = useState([
     {
       startDate: startOfWeek(new Date(), WEEK_OPTIONS),
@@ -167,8 +167,8 @@ export default function ScheduleApprovalPage() {
     const end = dayjs(dateRange[0].endDate).endOf('day');
 
     return schedules.filter(s => {
-      const matchUser = selectedUsers 
-        ? s.name.toLowerCase().includes(selectedUsers.toLowerCase()) 
+      const matchUser = userSearchFilter 
+        ? s.name.toLowerCase().includes(userSearchFilter.toLowerCase()) 
         : true;
       const matchStatus = selectedStatuses.length > 0
         ? selectedStatuses.includes(s.approved ? 'Approved' : 'Pending')
@@ -179,7 +179,7 @@ export default function ScheduleApprovalPage() {
           : true;
       return matchUser && matchStatus && matchDate;
     });
-  }, [schedules, selectedUsers, selectedStatuses, dateRange]);
+  }, [schedules, userSearchFilter, selectedStatuses, dateRange]);
 
   const grouped = filtered.reduce((acc, curr) => {
     if (!acc[curr.name]) acc[curr.name] = [];
@@ -189,8 +189,8 @@ export default function ScheduleApprovalPage() {
 
   // 전체 유저 목록 (필터링 없이)
   const allUsersGrouped = useMemo(() => {
-    const userFilter = selectedUsers 
-      ? schedules.filter(s => s.name.toLowerCase().includes(selectedUsers.toLowerCase()))
+    const userFilter = userSearchFilter 
+      ? schedules.filter(s => s.name.toLowerCase().includes(userSearchFilter.toLowerCase()))
       : schedules;
     
     return userFilter.reduce((acc, curr) => {
@@ -198,18 +198,18 @@ export default function ScheduleApprovalPage() {
       acc[curr.name].push(curr);
       return acc;
     }, {} as Record<string, TimeSlot[]>);
-  }, [schedules, selectedUsers]);
+  }, [schedules, userSearchFilter]);
 
   // 선택된 유저의 스케줄만 날짜/상태 필터링 적용
-  const selectedUserSchedules = useMemo(() => {
-    if (!selectedUser) return [];
+  const activeUserSchedules = useMemo(() => {
+    if (!activeUser) return [];
     
     const start = dayjs(dateRange[0].startDate).startOf('day');
     const end = dayjs(dateRange[0].endDate).endOf('day');
     
-    const userSchedules = schedules.filter(s => s.name === selectedUser);
+    const userSchedules = schedules.filter(s => s.name === activeUser);
     
-    return userSchedules.filter(s => {
+    const filteredSchedules = userSchedules.filter(s => {
       const matchStatus = selectedStatuses.length > 0
         ? selectedStatuses.includes(s.approved ? 'Approved' : 'Pending')
         : true;
@@ -219,7 +219,21 @@ export default function ScheduleApprovalPage() {
           : true;
       return matchStatus && matchDate;
     });
-  }, [schedules, selectedUser, selectedStatuses, dateRange]);
+
+    // 정렬: 날짜 빠른 순, 같은 날짜면 시간 빠른 순
+    return filteredSchedules.sort((a, b) => {
+      // 먼저 날짜로 정렬
+      const dateComparison = dayjs(a.date).diff(dayjs(b.date));
+      if (dateComparison !== 0) {
+        return dateComparison;
+      }
+      
+      // 날짜가 같으면 시작 시간으로 정렬
+      const timeA = dayjs(`${a.date} ${a.start}`);
+      const timeB = dayjs(`${b.date} ${b.start}`);
+      return timeA.diff(timeB);
+    });
+  }, [schedules, activeUser, selectedStatuses, dateRange]);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -228,8 +242,8 @@ export default function ScheduleApprovalPage() {
 
         <FilterControls
           users={uniqueUsers}
-          selectedUsers={selectedUsers}
-          setSelectedUsers={setSelectedUsers}
+          selectedUsers={userSearchFilter}
+          setSelectedUsers={setUserSearchFilter}
           dateRange={dateRange}
           setDateRange={setDateRange}
           selectedStatuses={selectedStatuses}
@@ -248,13 +262,13 @@ export default function ScheduleApprovalPage() {
                       sx={{
                         p: 2,
                         cursor: 'pointer',
-                        backgroundColor: selectedUser === userName ? '#e3f2fd' : 'white',
-                        border: selectedUser === userName ? '2px solid #1976d2' : '1px solid #e0e0e0',
+                        backgroundColor: activeUser === userName ? '#e3f2fd' : 'white',
+                        border: activeUser === userName ? '2px solid #1976d2' : '1px solid #e0e0e0',
                         '&:hover': {
-                          backgroundColor: selectedUser === userName ? '#e3f2fd' : '#f5f5f5',
+                          backgroundColor: activeUser === userName ? '#e3f2fd' : '#f5f5f5',
                         }
                       }}
-                      onClick={() => setSelectedUser(userName)}
+                      onClick={() => setActiveUser(userName)}
                     >
                       <Typography fontWeight="bold">{userName}</Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -270,13 +284,13 @@ export default function ScheduleApprovalPage() {
           <Grid item xs={12} md={8}>
             <Paper sx={{ height: '100%', overflow: 'auto' }}>
               <Box p={2}>
-                {selectedUser ? (
+                {activeUser ? (
                   <>
                     <Typography variant="h6" mb={2}>
-                      📅 {selectedUser}'s Schedules ({selectedUserSchedules.length})
+                      📅 {activeUser}'s Schedules ({activeUserSchedules.length})
                     </Typography>
                     <Stack spacing={2}>
-                      {selectedUserSchedules.map((slot) => (
+                      {activeUserSchedules.map((slot: TimeSlot) => (
                         <Paper 
                           key={slot._id} 
                           sx={{ 
@@ -322,10 +336,10 @@ export default function ScheduleApprovalPage() {
                           </Stack>
                         </Paper>
                       ))}
-                      {selectedUserSchedules.length === 0 && (
+                      {activeUserSchedules.length === 0 && (
                         <Box textAlign="center" py={4}>
                           <Typography variant="body1" color="text.secondary">
-                            No schedules found for {selectedUser}
+                            No schedules found for {activeUser}
                           </Typography>
                         </Box>
                       )}

@@ -37,6 +37,11 @@ interface ScheduleTemplate {
   order: number;
 }
 
+interface WorkSession {
+  start: Dayjs | null;
+  end: Dayjs | null;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -62,6 +67,13 @@ export default function EditShiftDialog({
   const [useTemplate, setUseTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
+  
+  // Split Sessions 관련 상태
+  const [isSeparated, setIsSeparated] = useState(false);
+  const [sessions, setSessions] = useState<WorkSession[]>([
+    { start: null, end: null },
+    { start: null, end: null }
+  ]);
 
   useEffect(() => {
     if (slot) {
@@ -95,11 +107,16 @@ export default function EditShiftDialog({
     }
   }, [open, slot]);
 
-  // Reset template states when dialog opens
+  // Reset template states and split sessions when dialog opens
   useEffect(() => {
     if (open) {
       setUseTemplate(false);
       setSelectedTemplate('');
+      setIsSeparated(false);
+      setSessions([
+        { start: null, end: null },
+        { start: null, end: null }
+      ]);
     }
   }, [open]);
 
@@ -150,6 +167,38 @@ export default function EditShiftDialog({
       // For minutes, check the specific time
       return isTimeConflicted(time);
     }
+  };
+
+  // Check if work duration is 6 hours or more
+  const hasMealBreak = () => {
+    if (!editStart || !editEnd) return false;
+    const duration = editEnd.diff(editStart, 'hour', true);
+    return duration >= 6;
+  };
+
+  // Handle session separation
+  const handleSeparate = () => {
+    if (!editStart || !editEnd) return;
+
+    const totalDuration = editEnd.diff(editStart, 'minute');
+    const breakStart = editStart.add(totalDuration / 2 - 15, 'minute');
+    const breakEnd = breakStart.add(30, 'minute');
+
+    // Set sessions
+    setSessions([
+      { start: editStart, end: breakStart },
+      { start: breakEnd, end: editEnd }
+    ]);
+    setIsSeparated(true);
+  };
+
+  // Handle session combination
+  const handleCombine = () => {
+    setIsSeparated(false);
+    setSessions([
+      { start: editStart, end: null },
+      { start: null, end: null }
+    ]);
   };
 
   const handleTemplateSubmit = async () => {
@@ -214,16 +263,58 @@ export default function EditShiftDialog({
 
     setLoading(true);
     try {
-      await fetch('/api/schedules', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: slot._id,
-          start: editStart.format('HH:mm'),
-          end: editEnd.format('HH:mm'),
-          approved: slot.approved || false,
-        }),
-      });
+      if (isSeparated && sessions.length === 2) {
+        // Handle separated sessions - delete original and create two new ones
+        const firstSession = sessions[0];
+        const secondSession = sessions[1];
+
+        // Delete the original schedule
+        await fetch(`/api/schedules?id=${slot._id}`, {
+          method: 'DELETE',
+        });
+
+        // Create two new schedules
+        const firstSchedule = {
+          userId: slot.userId,
+          date: slot.date,
+          start: firstSession.start?.format('HH:mm'),
+          end: firstSession.end?.format('HH:mm'),
+          approved: slot.approved || false
+        };
+
+        const secondSchedule = {
+          userId: slot.userId,
+          date: slot.date,
+          start: secondSession.start?.format('HH:mm'),
+          end: secondSession.end?.format('HH:mm'),
+          approved: slot.approved || false
+        };
+
+        await Promise.all([
+          fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(firstSchedule),
+          }),
+          fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(secondSchedule),
+          })
+        ]);
+      } else {
+        // Handle single session - update existing schedule
+        await fetch('/api/schedules', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: slot._id,
+            start: editStart.format('HH:mm'),
+            end: editEnd.format('HH:mm'),
+            approved: slot.approved || false,
+          }),
+        });
+      }
 
       onClose();
       fetchSchedules();
@@ -373,21 +464,87 @@ export default function EditShiftDialog({
           {/* Manual Edit (hidden when using template) */}
           {!useTemplate && (
             <>
+              <Box>
+                <Typography variant="subtitle1" gutterBottom>
+                  Work Time
+                </Typography>
+                <Stack direction="row" spacing={2}>
+                  <TimePicker
+                    label="Start Time"
+                    value={editStart}
+                    onChange={setEditStart}
+                    shouldDisableTime={shouldDisableTime}
+                    disabled={loading}
+                    sx={{ flex: 1 }}
+                  />
+                  <TimePicker
+                    label="End Time"
+                    value={editEnd}
+                    onChange={setEditEnd}
+                    shouldDisableTime={shouldDisableTime}
+                    disabled={loading}
+                    sx={{ flex: 1 }}
+                  />
+                </Stack>
+              </Box>
 
-          <TimePicker
-            label="Start Time"
-            value={editStart}
-            onChange={setEditStart}
-            shouldDisableTime={shouldDisableTime}
-            disabled={loading}
-          />
-          <TimePicker
-            label="End Time"
-            value={editEnd}
-            onChange={setEditEnd}
-            shouldDisableTime={shouldDisableTime}
-            disabled={loading}
-          />
+              {hasMealBreak() && (
+                <Box>
+                  <Button
+                    variant={isSeparated ? "outlined" : "contained"}
+                    onClick={isSeparated ? handleCombine : handleSeparate}
+                    fullWidth
+                    disabled={loading}
+                  >
+                    {isSeparated ? "Combine Sessions" : "Split Sessions"}
+                  </Button>
+                </Box>
+              )}
+
+              {isSeparated && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle1" gutterBottom>
+                      First Session
+                    </Typography>
+                    <Stack direction="row" spacing={2}>
+                      <TimePicker
+                        label="Start"
+                        value={sessions[0].start}
+                        disabled
+                        sx={{ flex: 1 }}
+                      />
+                      <TimePicker
+                        label="End"
+                        value={sessions[0].end}
+                        disabled
+                        sx={{ flex: 1 }}
+                      />
+                    </Stack>
+                  </Box>
+
+                  <Box>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Second Session
+                    </Typography>
+                    <Stack direction="row" spacing={2}>
+                      <TimePicker
+                        label="Start"
+                        value={sessions[1].start}
+                        disabled
+                        sx={{ flex: 1 }}
+                      />
+                      <TimePicker
+                        label="End"
+                        value={sessions[1].end}
+                        disabled
+                        sx={{ flex: 1 }}
+                      />
+                    </Stack>
+                  </Box>
+                </>
+              )}
 
           {existingSchedules.length > 0 && (
             <Box>
