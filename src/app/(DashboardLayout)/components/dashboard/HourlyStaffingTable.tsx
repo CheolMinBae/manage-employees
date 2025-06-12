@@ -368,14 +368,14 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
 
   // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산
   const filteredHourlyData = data?.hourlyData.map(hourData => {
-    const filteredEmployeesAtHour = hourData.employees.filter(emp => 
-      filteredEmployees.some(filteredEmp => filteredEmp.name === emp.name)
-    );
-    
+    const count = filteredEmployees.reduce((sum, emp) => {
+      const status = emp.hourlyStatus?.[hourData.hour];
+      return sum + (status?.workingRatio || 0);
+    }, 0);
     return {
       ...hourData,
-      count: filteredEmployeesAtHour.length,
-      employees: filteredEmployeesAtHour
+      count,
+      employees: filteredEmployees
     };
   }) || [];
 
@@ -548,6 +548,12 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     if (count <= 2) return '#f44336';
     if (count <= 4) return '#ff9800';
     return '#4caf50';
+  };
+
+  // 직원별 전체 시간 합계 계산 함수 (반올림 없이 단순 합산)
+  const getEmployeeTotalHours = (employee: EmployeeSchedule): number => {
+    console.log(employee.hourlyStatus);
+    return (employee.hourlyStatus || []).reduce((sum: number, status: any) => sum + (status?.workingRatio || 0), 0);
   };
 
   if (loading) {
@@ -783,6 +789,11 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   </Typography>
                 </TableCell>
               ))}
+              <TableCell align="center" sx={{ minWidth: 60, px: 0.5 }}>
+                <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                  합계
+                </Typography>
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -814,11 +825,19 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                         py: 0.25,
                       }}
                     >
-                      {hourData.count || ''}
+                      {hourData.count ? hourData.count : ''}
                     </Typography>
                   </Tooltip>
                 </TableCell>
               ))}
+              <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
+                <Typography variant="body2" fontWeight="bold">
+                  {/* 전체 직원 합계의 합계 */}
+                  {filteredEmployees
+                    .reduce((sum, emp) => sum + getEmployeeTotalHours(emp), 0)
+                    }
+                </Typography>
+              </TableCell>
             </TableRow>
 
             {/* Individual Employee Rows */}
@@ -827,7 +846,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 1 }}>
                   <Box>
                     <Typography variant="body2" fontWeight="bold">
-                      {employee.name} ({employee.userType})
+                      {employee.name} ({employee.userType.toLowerCase()})
                     </Typography>
                     <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
                       <Chip label={employee.corp} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
@@ -855,7 +874,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                             py: 0.25,
                           }}
                         >
-                          {status.workingRatio === 1 ? '1' : status.workingRatio.toFixed(1)}
+                          {status.workingRatio === 1 ? '1' : status.workingRatio}
                         </Typography>
                       </Tooltip>
                     ) : (
@@ -876,6 +895,11 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                     )}
                   </TableCell>
                 ))}
+                <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
+                  <Typography variant="body2" fontWeight="bold">
+                    {getEmployeeTotalHours(employee)}
+                  </Typography>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
