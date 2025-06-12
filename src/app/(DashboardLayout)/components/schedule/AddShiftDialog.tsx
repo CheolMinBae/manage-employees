@@ -80,6 +80,7 @@ export default function AddShiftDialog({
 }: AddShiftDialogProps) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.position === 'admin';
+  const isEmployee = session?.user?.position === 'employee';
   
   const [slotForms, setSlotForms] = useState<SlotForm[]>([]);
   const [allExistingSchedules, setAllExistingSchedules] = useState<ExistingSchedule[]>([]);
@@ -141,7 +142,7 @@ export default function AddShiftDialog({
   // Fetch templates (admin only)
   useEffect(() => {
     const fetchTemplates = async () => {
-      if (!isAdmin) return;
+      if (!(isAdmin || isEmployee)) return;
 
       try {
         const response = await fetch('/api/schedule-templates');
@@ -155,10 +156,10 @@ export default function AddShiftDialog({
       }
     };
 
-    if (open && isAdmin) {
+    if (open && (isAdmin || isEmployee)) {
       fetchTemplates();
     }
-  }, [open, isAdmin]);
+  }, [open, isAdmin, isEmployee]);
 
   // Check if a time conflicts with existing schedules for a specific date
   const isTimeConflicted = (time: Dayjs, targetDate: string, excludeSlotId?: string) => {
@@ -319,8 +320,8 @@ export default function AddShiftDialog({
       <DialogTitle>Add Shift</DialogTitle>
       <DialogContent dividers>
         {/* Admin Template Selection */}
-        {isAdmin && (
-          <Box sx={{ mb: 3 }}>
+        
+        <Box sx={{ mb: 3 }}>
             <FormControlLabel
               control={
                 <Switch
@@ -333,16 +334,16 @@ export default function AddShiftDialog({
                   }}
                 />
               }
-              label="Force Schedule Templates 사용"
+              label="Force Schedule Templates"
             />
             
             {useTemplate && (
               <Box sx={{ mt: 2 }}>
                 <FormControl fullWidth>
-                  <InputLabel>스케줄 템플릿 선택</InputLabel>
+                  <InputLabel>Select Schedule Template</InputLabel>
                   <Select
                     value={selectedTemplate}
-                    label="스케줄 템플릿 선택"
+                    label="Select Schedule Template"
                     onChange={(e) => setSelectedTemplate(e.target.value)}
                   >
                     {templates.map((template) => (
@@ -366,7 +367,6 @@ export default function AddShiftDialog({
             
             <Divider sx={{ my: 3 }} />
           </Box>
-        )}
 
         {/* Manual Schedule Input (hidden when using template) */}
         {!useTemplate && (

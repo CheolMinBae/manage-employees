@@ -53,6 +53,7 @@ export default function SimpleAddShiftDialog({
 }: SimpleAddShiftDialogProps) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.position === 'admin';
+  const isEmployee = session?.user?.position === 'employee';
   
   const [startTime, setStartTime] = useState<Dayjs | null>(null);
   const [endTime, setEndTime] = useState<Dayjs | null>(null);
@@ -75,7 +76,7 @@ export default function SimpleAddShiftDialog({
   // Fetch templates (admin only)
   useEffect(() => {
     const fetchTemplates = async () => {
-      if (!isAdmin) return;
+      if (!(isAdmin || isEmployee)) return;
 
       try {
         const response = await fetch('/api/schedule-templates');
@@ -89,10 +90,10 @@ export default function SimpleAddShiftDialog({
       }
     };
 
-    if (open && isAdmin) {
+    if (open && (isAdmin || isEmployee)) {
       fetchTemplates();
     }
-  }, [open, isAdmin]);
+  }, [open, isAdmin, isEmployee]);
 
   const handleTemplateSubmit = async () => {
     if (!selectedTemplate || !selectedDate) return;

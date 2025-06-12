@@ -92,6 +92,7 @@ function TimeSelectionDialog({
 }: TimeSelectionDialogProps) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.position === 'admin';
+  const isEmployee = session?.user?.position === 'employee';
   
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -117,7 +118,7 @@ function TimeSelectionDialog({
   // Fetch templates (admin only)
   useEffect(() => {
     const fetchTemplates = async () => {
-      if (!isAdmin) return;
+      if (!(isAdmin || isEmployee)) return;
 
       try {
         const response = await fetch('/api/schedule-templates');
@@ -131,10 +132,10 @@ function TimeSelectionDialog({
       }
     };
 
-    if (open && isAdmin) {
+    if (open && (isAdmin || isEmployee)) {
       fetchTemplates();
     }
-  }, [open, isAdmin]);
+  }, [open, isAdmin, isEmployee]);
 
   const generateTimeOptions = () => {
     const options = [];
@@ -858,22 +859,19 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                         </Typography>
                       </Tooltip>
                     ) : (
-                      <Tooltip title={`Add shift for ${employee.name} at ${formatHour(hour)}`} placement="top">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenDialog(employee.userId, hour, employee.name)}
+                      <Tooltip title={status.shift || 'Not working'} placement="top">
+                        <Typography
+                          variant="caption"
                           sx={{
-                            width: 20,
-                            height: 20,
-                            color: '#2196f3',
-                            '&:hover': {
-                              backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                              color: '#1976d2',
-                            },
+                            color: '#9e9e9e',
+                            fontWeight: 'bold',
+                            fontSize: '0.75rem',
+                            px: 0.5,
+                            py: 0.25,
                           }}
                         >
-                          <AddIcon sx={{ fontSize: '0.8rem' }} />
-                        </IconButton>
+                          -
+                        </Typography>
                       </Tooltip>
                     )}
                   </TableCell>
@@ -884,6 +882,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         </Table>
       </TableContainer>
 
+      {/* Legend & Dialog & Toast */}
       <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography variant="caption" color="text.secondary">
           Legend:
@@ -909,7 +908,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           sx={{ backgroundColor: '#4caf50', color: 'white', fontSize: '0.7rem' }} 
         />
         <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-          Individual: 1 = Full hour • 0.x = Partial hour • + = Add shift
+          Individual: 1 = Full hour • 0.x = Partial hour • - = Not working
         </Typography>
       </Box>
 
@@ -939,4 +938,4 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       </Snackbar>
     </Box>
   );
-} 
+}
