@@ -19,6 +19,7 @@ import dayjs from 'dayjs';
 import { useEffect, useState, useRef } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { useSession } from 'next-auth/react';
+import EditShiftDialog from '../schedule/EditShiftDialog';
 
 interface Employee {
   name: string;
@@ -330,6 +331,10 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   const [userTypeFilter, setUserTypeFilter] = useState<string[]>([]);
   const [companyFilter, setCompanyFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
+
+  // 1. Add/Edit Shift Dialog 상태 추가
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editDialogInfo, setEditDialogInfo] = useState<{ employee: EmployeeSchedule; hour: number } | null>(null);
 
   const fetchHourlyData = async (isRefresh = false) => {
     if (isRefresh) {
@@ -873,24 +878,23 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                             px: 0.5,
                             py: 0.25,
                           }}
+                          onClick={() => {
+                            setEditDialogInfo({ employee, hour });
+                            setEditDialogOpen(true);
+                          }}
                         >
                           {status.workingRatio === 1 ? '1' : status.workingRatio}
                         </Typography>
                       </Tooltip>
                     ) : (
-                      <Tooltip title={status.shift || 'Not working'} placement="top">
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: '#9e9e9e',
-                            fontWeight: 'bold',
-                            fontSize: '0.75rem',
-                            px: 0.5,
-                            py: 0.25,
-                          }}
+                      <Tooltip title="Add shift" placement="top">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenDialog(employee.userId, hour, employee.name)}
+                          sx={{ width: 20, height: 20, color: '#2196f3', '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2' } }}
                         >
-                          -
-                        </Typography>
+                          <AddIcon sx={{ fontSize: '0.8rem' }} />
+                        </IconButton>
                       </Tooltip>
                     )}
                   </TableCell>
@@ -946,6 +950,22 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           selectedHour={selectedEmployee.hour}
           userId={selectedEmployee.userId}
           selectedDate={selectedDate}
+        />
+      )}
+
+      {/* Edit Shift Dialog */}
+      {editDialogOpen && editDialogInfo && (
+        <EditShiftDialog
+          open={editDialogOpen}
+          onClose={() => setEditDialogOpen(false)}
+          slot={{
+            ...editDialogInfo.employee,
+            start: editDialogInfo.employee.hourlyStatus[editDialogInfo.hour]?.shift ?
+              editDialogInfo.employee.hourlyStatus[editDialogInfo.hour]?.shift : '',
+            end: '', // 필요시 end 시간도 전달
+            date: data.date,
+          }}
+          fetchSchedules={fetchHourlyData}
         />
       )}
 
