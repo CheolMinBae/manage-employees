@@ -4,7 +4,7 @@
 // The current database to use.
 use("test");
 
-// Find a document in a collection.
-db.getCollection("schedules").findOne({
-    userId: ObjectId("682f0563ec4216d4d2d166bf")
+// position이 "employee"인 모든 사용자 삭제
+db.getCollection("signupusers").deleteMany({
+    position: "employee"
 }); 

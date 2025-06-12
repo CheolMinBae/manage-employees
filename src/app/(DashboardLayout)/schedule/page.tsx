@@ -217,7 +217,7 @@ export default function ScheduleRegisterPage() {
 
             <ShiftList
               weeks={weeks}
-              scheduleList={scheduleList}
+              scheduleList={scheduleList} 
               openEditDialog={openEditDialog}
               handleDelete={handleDelete}
               onCopyWeek={handleCopyWeek}
