@@ -10,6 +10,10 @@ import {
   Stack,
   Grid,
   alpha,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Star,
@@ -21,6 +25,30 @@ import {
 
 const ApplyPage = () => {
   const [email, setEmail] = useState('');
+  const [openDialog, setOpenDialog] = useState(false);
+
+  const handleNotifyMe = async () => {
+    try {
+      const response = await fetch('/api/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      if (response.ok) {
+        setOpenDialog(true);
+      } else {
+        console.error('Failed to save email');
+      }
+    } catch (error) {
+      console.error('Error saving email:', error);
+    }
+  };
+
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f7f7f7' }}>
@@ -108,7 +136,7 @@ const ApplyPage = () => {
                     mx: { xs: 'auto', md: 0 },
                   }}
                 >
-                  고객전용 리워드 앱이 곧 출시됩니다. 특별한 혜택과 할인을 가장 먼저 받아보세요.
+                  Our exclusive customer rewards app is launching soon. Be the first to receive special benefits and discounts.
                 </Typography>
                 
                 <Box sx={{ mt: 4 }}>
@@ -120,7 +148,7 @@ const ApplyPage = () => {
                   >
                     <TextField
                       fullWidth
-                      placeholder="이메일 주소를 입력하세요"
+                      placeholder="Enter your email address"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       sx={{
@@ -135,6 +163,7 @@ const ApplyPage = () => {
                     />
                     <Button
                       variant="contained"
+                      onClick={handleNotifyMe}
                       sx={{
                         bgcolor: '#00704a',
                         color: 'white',
@@ -149,7 +178,7 @@ const ApplyPage = () => {
                         '&:hover': { bgcolor: '#005c3d' },
                       }}
                     >
-                      알림받기
+                      Notify Me
                     </Button>
                   </Stack>
                 </Box>
@@ -251,7 +280,7 @@ const ApplyPage = () => {
                     lineHeight: 1.6,
                   }}
                 >
-                  Seed & Water를 방문해주셔서 감사합니다. 소중한 리뷰를 남겨주시면 추첨을 통해 특별한 무료 선물을 드립니다!
+                  Thank you for visiting Seed & Water. Leave us a valuable review and get a chance to win a special free gift!
                 </Typography>
                 
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 4 }}>
@@ -269,7 +298,7 @@ const ApplyPage = () => {
                       '&:hover': { bgcolor: '#b8941f' },
                     }}
                   >
-                    리뷰 남기기
+                    Leave a Review
                   </Button>
                   <Button
                     variant="outlined"
@@ -288,7 +317,7 @@ const ApplyPage = () => {
                       },
                     }}
                   >
-                    나중에
+                    Maybe Later
                   </Button>
                 </Stack>
               </Stack>
@@ -334,7 +363,7 @@ const ApplyPage = () => {
                     mx: { xs: 'auto', md: 0 },
                   }}
                 >
-                  함께 성장할 열정적인 팀원을 찾고 있습니다. 새로운 도전과 기회가 기다리고 있어요!
+                  We are looking for passionate team members to grow with us. New challenges and opportunities await you!
                 </Typography>
                 
                 <Button
@@ -354,7 +383,7 @@ const ApplyPage = () => {
                     '&:hover': { bgcolor: '#005c3d' },
                   }}
                 >
-                  지원하기
+                  Apply Now
                 </Button>
               </Stack>
             </Grid>
@@ -415,6 +444,21 @@ const ApplyPage = () => {
           </Stack>
         </Container>
       </Box>
+
+      {/* Email Saved Dialog */}
+      <Dialog open={openDialog} onClose={handleCloseDialog}>
+        <DialogTitle>Email Saved</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Your email has been successfully saved. We will notify you when our rewards app launches!
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
