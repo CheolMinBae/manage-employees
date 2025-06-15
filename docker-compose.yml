@@ -15,18 +15,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  mongodb:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=seedwatercafe
-      - MONGO_INITDB_ROOT_PASSWORD=seedwatercafe123!
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - app-network
-
 volumes:
   mongodb_data:
 
