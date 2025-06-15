@@ -28,37 +28,28 @@ jobs:
 
     - name: Sync project files to EC2
       run: |
-        rsync -az --delete \
+        rsync -az \
           -e "ssh -i ~/.ssh/deploy_key" \
           --exclude ".git" \
           --exclude "node_modules" \
           --exclude ".github" \
+          --exclude "certbot/" \
           ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
 
-    - name: Run docker-compose on EC2 with debug info
+    - name: Run docker-compose on EC2
       run: |
         ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
-          set -e
           cd /home/ubuntu/manage-employees
 
-          echo "[+] Stopping existing containers..."
-          docker-compose down || true
+          # 1. nginx 먼저 실행 (HTTP 인증서 발급용)
+          docker-compose up -d nginx
 
-          echo "[+] Building and running containers in background..."
-          docker-compose up --build -d || true
+          # 2. 인증서가 없으면 certbot으로 발급 시도
+          if [ ! -f ./certbot/conf/live/seedwatercafe.com/fullchain.pem ]; then
+            docker-compose run --rm certbot
+            docker-compose restart nginx
+          fi
 
-          echo "[+] Waiting for container to initialize..."
-          sleep 5
-
-          echo "[+] Showing container status:"
-          docker ps -a || true
-
-          echo "[+] Showing logs of all containers:"
-          docker-compose logs --tail=100 || true
-
-          echo "[+] Showing exit codes of containers:"
-          docker inspect $(docker ps -aq) --format '{{ .Name }}: {{ .State.ExitCode }}' || true
-
-          echo "[+] Cleaning up unused Docker resources..."
-          docker system prune -f || true
+          # 3. web 서비스 포함 전체 실행
+          docker-compose up -d web
         EOF
