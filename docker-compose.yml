@@ -9,52 +9,21 @@ services:
         - GOOGLE_CLIENT_ID=931144760064-ste62g7v47dlu31b6ljsio5tvsl5ds5n.apps.googleusercontent.com
         - GOOGLE_CLIENT_SECRET=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
         - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
-        - NEXTAUTH_URL=https://seedwatercafe.com
-    expose:
-      - "3000"
+        - NEXTAUTH_URL=http://184.73.144.148/
+    ports:
+      - "3000:3000"   # EC2에서 로컬 nginx가 포워딩할 대상 포트
     environment:
       - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/test?authSource=admin
       - NODE_ENV=production
       - GOOGLE_CLIENT_ID=931144760064-ste62g7v47dlu31b6ljsio5tvsl5ds5n.apps.googleusercontent.com
       - GOOGLE_CLIENT_SECRET=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
       - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
-      - NEXTAUTH_URL=https://seedwatercafe.com
+      - NEXTAUTH_URL=http://184.73.144.148/
     networks:
       - app-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  nginx:
-    image: nginx:latest
-    container_name: nginx
-    depends_on:
-      - web
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-    networks:
-      - app-network
-
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-    entrypoint: ""
-    command: >
-      certbot certonly --webroot --webroot-path=/var/www/certbot
-      --email cjfals0904@gmail.com --agree-tos --no-eff-email --non-interactive
-      -d seedwatercafe.com -d www.seedwatercafe.com -d sch.seedwatercafe.com
-
-
 networks:
   app-network:
     driver: bridge
-
-volumes:
-  mongodb_data:

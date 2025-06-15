@@ -33,23 +33,12 @@ jobs:
           --exclude ".git" \
           --exclude "node_modules" \
           --exclude ".github" \
-          --exclude "certbot/" \
           ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
 
-    - name: Run docker-compose on EC2
+    - name: Run docker-compose on EC2 (web only)
       run: |
         ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
           cd /home/ubuntu/manage-employees
-
-          # 1. nginx 먼저 실행 (HTTP 인증서 발급용)
-          docker-compose up -d nginx
-
-          # 2. 인증서가 없으면 certbot으로 발급 시도
-          if [ ! -f ./certbot/conf/live/seedwatercafe.com/fullchain.pem ]; then
-            docker-compose run --rm certbot
-            docker-compose restart nginx
-          fi
-
-          # 3. web 서비스 포함 전체 실행
-          docker-compose up -d web
+          docker-compose down
+          docker-compose up -d --build web
         EOF
