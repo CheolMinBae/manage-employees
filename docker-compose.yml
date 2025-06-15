@@ -4,11 +4,11 @@ services:
     build: 
       context: .
       args:
-        - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/seedwatercafe?authSource=admin
+        - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/test?authSource=admin
     ports:
       - "80:3000"  # ✅ 수정된 부분
     environment:
-      - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/seedwatercafe?authSource=admin
+      - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/test?authSource=admin
       - NODE_ENV=production
     networks:
       - app-network
