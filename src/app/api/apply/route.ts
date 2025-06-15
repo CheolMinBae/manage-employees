@@ -3,15 +3,41 @@ import nodemailer from 'nodemailer';
 
 export const dynamic = 'force-dynamic';
 
+function makeWeeklyTable(weekly) {
+  const weekDays = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+  ];
+  return weekDays.map((day, idx) => {
+    const from = weekly[idx]?.from || '';
+    const to = weekly[idx]?.to || '';
+    return `${day}: ${from && to ? `${from} – ${to}` : ''}`;
+  }).join('<br/>');
+}
+
 export async function POST(req: Request) {
   try {
-    const { name, age, email, phone } = await req.json();
+    const { name, email, phone, position, startDate, weekly } = await req.json();
 
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       throw new Error('Email configuration is missing. Please check your environment variables.');
     }
 
-    // 이메일 전송을 위한 transporter 설정
+    // 이메일 본문 생성
+    const html = `
+      <p>Dear Hiring Manager,</p>
+      <p>I am writing to formally express my interest in joining Seed and Water Bakery Cafe.</p>
+      <p><b>Position Applied:</b> ${position}</p>
+      <p><b>Earliest Start Date:</b> ${startDate}</p>
+      <p><b>Name:</b> ${name}<br/>
+      <b>Email:</b> ${email}<br/>
+      <b>Phone:</b> ${phone}</p>
+      <p><b>Weekly Availability:</b><br/>
+      ${makeWeeklyTable(weekly)}
+      </p>
+      <p>Please find my resume attached for your review. I look forward to the opportunity to contribute to your team.</p>
+      <p>Warm regards</p>
+    `;
+
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -20,21 +46,13 @@ export async function POST(req: Request) {
       },
     });
 
-    // 이메일 내용 구성
     const mailOptions = {
       from: process.env.EMAIL_USER,
-      to: 'cjfals0904@gmail.com',
+      to: 'hello@tigersplus.com',
       subject: 'New Job Application',
-      html: `
-        <h2>New Job Application</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Age:</strong> ${age}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Phone:</strong> ${phone}</p>
-      `,
+      html,
     };
 
-    // 이메일 전송
     await transporter.sendMail(mailOptions);
 
     return NextResponse.json({ message: 'Application submitted successfully' });
