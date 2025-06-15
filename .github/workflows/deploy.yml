@@ -7,41 +7,34 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Configure AWS credentials
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
-    
-    - name: Setup SSH
+
+    - name: Setup SSH Key
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        cat >>~/.ssh/config <<END
-        Host ec2
-          HostName ${{ secrets.EC2_HOST }}
-          User ubuntu
-          IdentityFile ~/.ssh/deploy_key
-          StrictHostKeyChecking no
-        END
-    
-    - name: Copy files to EC2
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Deploy files to EC2
       run: |
-        scp -r ./* ec2:/home/ubuntu/manage-employees/
-    
-    - name: Deploy to EC2
+        rsync -avz -e "ssh -i ~/.ssh/deploy_key" ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
+
+    - name: Run Deployment Commands on EC2
       run: |
-        ssh ec2 "cd /home/ubuntu/manage-employees && \
-          sudo chown -R ubuntu:ubuntu . && \
-          sudo chmod -R 755 . && \
-          sudo usermod -aG docker ubuntu && \
-          sudo systemctl restart docker && \
-          sudo docker-compose down && \
-          sudo docker-compose up --build -d && \
-          sudo docker system prune -f" 
+        ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+        cd /home/ubuntu/manage-employees
+        docker-compose down
+        docker-compose up --build -d
+        docker system prune -f
+        EOF
