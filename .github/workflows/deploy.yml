@@ -19,22 +19,24 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
-    - name: Setup SSH Key
+    - name: Setup SSH Key from Base64
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+        echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Deploy files to EC2
+    - name: Sync files to EC2
       run: |
-        rsync -avz -e "ssh -i ~/.ssh/deploy_key" ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
+        rsync -avz -e "ssh -i ~/.ssh/deploy_key" \
+          --exclude=".git/" --exclude=".github/" --exclude="node_modules" \
+          ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
 
-    - name: Run Deployment Commands on EC2
+    - name: Run deployment on EC2
       run: |
         ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
-        cd /home/ubuntu/manage-employees
-        docker-compose down
-        docker-compose up --build -d
-        docker system prune -f
+          cd /home/ubuntu/manage-employees
+          docker-compose down
+          docker-compose up --build -d
+          docker system prune -f -y
         EOF
