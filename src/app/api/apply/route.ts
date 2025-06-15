@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 
 export const dynamic = 'force-dynamic';
 
-function makeWeeklyTable(weekly) {
+function makeWeeklyTable(weekly: { from?: string; to?: string }[]) {
   const weekDays = [
     'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
   ];
