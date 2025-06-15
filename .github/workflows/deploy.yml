@@ -35,11 +35,30 @@ jobs:
           --exclude ".github" \
           ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
 
-    - name: Run docker-compose on EC2
+    - name: Run docker-compose on EC2 with debug info
       run: |
         ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+          set -e
           cd /home/ubuntu/manage-employees
-          docker-compose down
-          docker-compose up --build -d
-          docker system prune -f
+
+          echo "[+] Stopping existing containers..."
+          docker-compose down || true
+
+          echo "[+] Building and running containers in background..."
+          docker-compose up --build -d || true
+
+          echo "[+] Waiting for container to initialize..."
+          sleep 5
+
+          echo "[+] Showing container status:"
+          docker ps -a || true
+
+          echo "[+] Showing logs of all containers:"
+          docker-compose logs --tail=100 || true
+
+          echo "[+] Showing exit codes of containers:"
+          docker inspect $(docker ps -aq) --format '{{ .Name }}: {{ .State.ExitCode }}' || true
+
+          echo "[+] Cleaning up unused Docker resources..."
+          docker system prune -f || true
         EOF
