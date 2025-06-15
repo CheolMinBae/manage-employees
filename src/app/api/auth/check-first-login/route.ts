@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@libs/mongodb';
 import SignupUser from '@models/SignupUser';
 
+// ✅ 동적 서버 라우트로 강제 지정 (정적 빌드 방지)
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -39,4 +42,4 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-} 
+}
