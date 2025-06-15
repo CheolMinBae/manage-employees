@@ -286,6 +286,7 @@ const ApplyPage = () => {
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 4 }}>
                   <Button
                     variant="contained"
+                    onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLScTSyiqji8JsirUlFwigOi5nq8xpo8SyUsnG-wn0HCvs5CV0g/viewform', '_blank')}
                     sx={{
                       bgcolor: '#d4af37',
                       color: '#5f4633',
@@ -299,25 +300,6 @@ const ApplyPage = () => {
                     }}
                   >
                     Leave a Review
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    sx={{
-                      borderColor: '#f5f5dc',
-                      color: '#f5f5dc',
-                      borderRadius: '50px',
-                      px: 4,
-                      py: 1.5,
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      textTransform: 'none',
-                      '&:hover': {
-                        borderColor: '#f5f5dc',
-                        bgcolor: alpha('#f5f5dc', 0.1),
-                      },
-                    }}
-                  >
-                    Maybe Later
                   </Button>
                 </Stack>
               </Stack>
