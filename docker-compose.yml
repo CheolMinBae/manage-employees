@@ -51,6 +51,7 @@ services:
       --email cjfals0904@gmail.com --agree-tos --no-eff-email --non-interactive
       -d seedwatercafe.com -d www.seedwatercafe.com -d sch.seedwatercafe.com
 
+
 networks:
   app-network:
     driver: bridge
