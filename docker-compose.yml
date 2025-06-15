@@ -1,4 +1,5 @@
-version: '3'
+version: '3.8'
+
 services:
   web:
     build: 
@@ -8,24 +9,51 @@ services:
         - GOOGLE_CLIENT_ID=931144760064-ste62g7v47dlu31b6ljsio5tvsl5ds5n.apps.googleusercontent.com
         - GOOGLE_CLIENT_SECRET=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
         - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
-        - NEXTAUTH_URL=http://184.73.144.148/
-    ports:
-      - "80:3000"  # ✅ 수정된 부분
+        - NEXTAUTH_URL=https://seedwatercafe.com
+    expose:
+      - "3000"
     environment:
       - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/test?authSource=admin
       - NODE_ENV=production
       - GOOGLE_CLIENT_ID=931144760064-ste62g7v47dlu31b6ljsio5tvsl5ds5n.apps.googleusercontent.com
       - GOOGLE_CLIENT_SECRET=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
       - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
-      - NEXTAUTH_URL=http://184.73.144.148/
+      - NEXTAUTH_URL=https://seedwatercafe.com
     networks:
       - app-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-volumes:
-  mongodb_data:
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    networks:
+      - app-network
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c"
+    command: >
+      "certbot certonly --webroot --webroot-path=/var/www/certbot
+       --email your@email.com --agree-tos --no-eff-email
+       -d seedwatercafe.com -d www.seedwatercafe.com -d sch.seedwatercafe.com"
 
 networks:
   app-network:
-    driver: bridge 
+    driver: bridge
+
+volumes:
+  mongodb_data:
