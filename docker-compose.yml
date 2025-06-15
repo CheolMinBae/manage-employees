@@ -10,6 +10,8 @@ services:
         - GOOGLE_CLIENT_SECRET=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
         - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
         - NEXTAUTH_URL=http://184.73.144.148/
+        - EMAIL_USER=phone.cheolmin@gmail.com
+        - EMAIL_PASS=lexr pwey woms hxkf
     ports:
       - "3000:3000"   # EC2에서 로컬 nginx가 포워딩할 대상 포트
     environment:
@@ -19,6 +21,8 @@ services:
       - GOOGLE_CLIENT_SECRET=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
       - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
       - NEXTAUTH_URL=http://184.73.144.148/
+      - EMAIL_USER=phone.cheolmin@gmail.com
+      - EMAIL_PASS=lexr pwey woms hxkf
     networks:
       - app-network
     extra_hosts:

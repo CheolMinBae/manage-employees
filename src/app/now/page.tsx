@@ -22,10 +22,12 @@ import {
   WorkOutline,
   CardGiftcard,
 } from '@mui/icons-material';
+import ApplyFormDialog from '../components/ApplyFormDialog';
 
 const ApplyPage = () => {
   const [email, setEmail] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
+  const [openApplyDialog, setOpenApplyDialog] = useState(false);
 
   const handleNotifyMe = async () => {
     try {
@@ -352,6 +354,7 @@ const ApplyPage = () => {
                   variant="contained"
                   size="large"
                   startIcon={<WorkOutline />}
+                  onClick={() => setOpenApplyDialog(true)}
                   sx={{
                     bgcolor: '#00704a',
                     color: 'white',
@@ -441,6 +444,12 @@ const ApplyPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Apply Form Dialog */}
+      <ApplyFormDialog 
+        open={openApplyDialog} 
+        onClose={() => setOpenApplyDialog(false)} 
+      />
     </Box>
   );
 };
