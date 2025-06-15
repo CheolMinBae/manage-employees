@@ -488,7 +488,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     }
   };
 
-  const renderTooltipContent = (employees: Employee[]) => {
+  const renderTooltipContent = (employees: EmployeeSchedule[]) => {
     if (employees.length === 0) {
       return <Typography variant="body2">No employees working</Typography>;
     }
@@ -512,12 +512,12 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 {emp.name}
               </Typography>
               <Typography variant="caption" color="white">
-                {emp.userType || emp.position} • {emp.shift}
+                {emp.userType || emp.position} • {/* shift 정보는 hourlyStatus에서 추출 */}
+                {emp.hourlyStatus && emp.hourlyStatus.filter(h => h.isWorking).map(h => h.shift ? h.shift : '').filter(s => s !== '').join(', ')}
               </Typography>
             </Box>
           ))}
         </Stack>
-        
         {/* User Type별 합계 */}
         <Box sx={{ borderTop: '1px solid #e0e0e0', pt: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 0.5, fontSize: '0.75rem', fontWeight: 'bold' }}>
@@ -959,9 +959,9 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           open={editDialogOpen}
           onClose={() => setEditDialogOpen(false)}
           slot={{
+            _id: '', // 임시 ID
             ...editDialogInfo.employee,
-            start: editDialogInfo.employee.hourlyStatus[editDialogInfo.hour]?.shift ?
-              editDialogInfo.employee.hourlyStatus[editDialogInfo.hour]?.shift : '',
+            start: editDialogInfo.employee.hourlyStatus[editDialogInfo.hour]?.shift || '',
             end: '', // 필요시 end 시간도 전달
             date: data.date,
           }}
