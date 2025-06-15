@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@libs/mongodb';
 import Corporation from '@models/Corporation';
 
+export const dynamic = 'force-dynamic';
+
 // GET: 모든 법인 조회
 export async function GET() {
   try {

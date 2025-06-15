@@ -4,6 +4,8 @@ import { connectDB } from '@libs/mongodb';
 import SignupUser from '@models/SignupUser';
 import bcrypt from 'bcryptjs';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   try {
     const {

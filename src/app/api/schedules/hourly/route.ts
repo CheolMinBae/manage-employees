@@ -4,6 +4,8 @@ import Schedule from '@models/Schedule';
 import SignupUser from '@models/SignupUser';
 import { format } from 'date-fns';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   await dbConnect();
 

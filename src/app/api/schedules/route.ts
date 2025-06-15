@@ -12,6 +12,8 @@ import {
 } from 'date-fns';
 import { WEEK_OPTIONS } from '@/constants/dateConfig';
 
+export const dynamic = 'force-dynamic';
+
 // 시간 중복 검사 함수
 function isTimeOverlapping(start1: string, end1: string, start2: string, end2: string): boolean {
   const [start1Hour, start1Min] = start1.split(':').map(Number);

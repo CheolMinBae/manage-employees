@@ -4,6 +4,9 @@ import SignupUser from '@models/SignupUser';
 import Schedule from '@models/Schedule';
 import bcrypt from 'bcryptjs';
 
+
+export const dynamic = 'force-dynamic';
+
 // GET: 모든 사용자 조회
 export async function GET() {
   try {

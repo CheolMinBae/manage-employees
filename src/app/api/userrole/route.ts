@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@libs/mongodb';
 import UserRole from '@models/UserRole';
 
+export const dynamic = 'force-dynamic';
+
 // GET: 모든 사용자 역할 조회
 export async function GET() {
   try {
