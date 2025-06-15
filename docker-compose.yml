@@ -5,11 +5,19 @@ services:
       context: .
       args:
         - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/test?authSource=admin
+        - GOOGLE_CLIENT_ID=931144760064-ste62g7v47dlu31b6ljsio5tvsl5ds5n.apps.googleusercontent.com
+        - GOOGLE_CLIENT_SECRET=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
+        - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
+        - NEXTAUTH_URL=http://184.73.144.148/
     ports:
       - "80:3000"  # ✅ 수정된 부분
     environment:
       - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/test?authSource=admin
       - NODE_ENV=production
+      - GOOGLE_CLIENT_ID=931144760064-ste62g7v47dlu31b6ljsio5tvsl5ds5n.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=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
+      - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
+      - NEXTAUTH_URL=http://184.73.144.148/
     networks:
       - app-network
     extra_hosts:
