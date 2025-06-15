@@ -45,11 +45,11 @@ services:
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
-    entrypoint: "/bin/sh -c"
+    entrypoint: ""
     command: >
-      "certbot certonly --webroot --webroot-path=/var/www/certbot
-       --email your@email.com --agree-tos --no-eff-email
-       -d seedwatercafe.com -d www.seedwatercafe.com -d sch.seedwatercafe.com"
+      certbot certonly --webroot --webroot-path=/var/www/certbot
+      --email cjfals0904@gmail.com --agree-tos --no-eff-email --non-interactive
+      -d seedwatercafe.com -d www.seedwatercafe.com -d sch.seedwatercafe.com
 
 networks:
   app-network:
