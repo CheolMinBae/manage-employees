@@ -9,34 +9,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Configure AWS Credentials
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
-    - name: Setup SSH Key from Base64
+    - name: Setup SSH key from base64
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Sync files to EC2
+    - name: Sync project files to EC2
       run: |
-        rsync -avz -e "ssh -i ~/.ssh/deploy_key" \
-          --exclude=".git/" --exclude=".github/" --exclude="node_modules" \
+        rsync -az --delete \
+          -e "ssh -i ~/.ssh/deploy_key" \
+          --exclude ".git" \
+          --exclude "node_modules" \
+          --exclude ".github" \
           ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
 
-    - name: Run deployment on EC2
+    - name: Run docker-compose on EC2
       run: |
         ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
           cd /home/ubuntu/manage-employees
           docker-compose down
           docker-compose up --build -d
-          docker system prune -f -y
+          docker system prune -f
         EOF
