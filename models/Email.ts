@@ -5,4 +5,5 @@ const emailSchema = new Schema({
   createdAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
+
 export default mongoose.models.Email || mongoose.model('Email', emailSchema); 
