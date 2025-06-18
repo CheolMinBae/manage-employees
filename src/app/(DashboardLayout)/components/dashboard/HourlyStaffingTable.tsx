@@ -20,7 +20,7 @@ import { useEffect, useState, useRef } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { useSession } from 'next-auth/react';
 import EditShiftDialog from '../schedule/EditShiftDialog';
-import { formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone, toDate } from 'date-fns-tz';
 import { CALIFORNIA_TIMEZONE } from '@/constants/dateConfig';
 
 interface Employee {
@@ -380,7 +380,8 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     let pendingCount = 0;
     let approvedCount = 0;
     filteredEmployees.forEach(emp => {
-      const status = emp.hourlyStatus?.[hourData.hour];
+      // 인덱스 보정: hourData.hour(3~23) → hourlyStatus[hourData.hour - 3]
+      const status = emp.hourlyStatus?.[hourData.hour - 3];
       if (status?.workingRatio) {
         if (status.approved === true) {
           approvedCount += status.workingRatio;
@@ -576,10 +577,15 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
 
   // 시간대 변환 함수 (캘리포니아 시간 기준)
   const formatHourCalifornia = (date: Date, hour: number) => {
-    // date는 현재 선택된 날짜, hour는 0~23
-    const base = new Date(date);
-    base.setHours(hour, 0, 0, 0);
-    return formatInTimeZone(base, CALIFORNIA_TIMEZONE, 'haaa');
+    // 1. date를 캘리포니아 기준 yyyy-MM-dd로 만듦
+    const baseDateStr = formatInTimeZone(date, CALIFORNIA_TIMEZONE, 'yyyy-MM-dd');
+    // 2. 캘리포니아 기준 3~23시를 'yyyy-MM-ddTHH:00:00'로 만듦
+    const hourStr = String(hour).padStart(2, '0');
+    const caDateTimeStr = `${baseDateStr}T${hourStr}:00:00`;
+    // 3. 이 문자열을 "캘리포니아 시간"으로 해석해서 Date 객체로 변환
+    const caDate = toDate(caDateTimeStr, { timeZone: CALIFORNIA_TIMEZONE });
+    // 4. 라벨은 항상 캘리포니아 타임존 기준으로 출력
+    return formatInTimeZone(caDate, CALIFORNIA_TIMEZONE, 'haaa');
   };
 
   if (loading) {
@@ -813,11 +819,15 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 </Popper>
               </TableCell>
               {data.hourlyData.map((hourData) => (
-                <TableCell key={hourData.hour} align="center" sx={{ minWidth: 40, px: 0.5 }}>
-                  <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-                    {formatHourCalifornia(selectedDate, hourData.hour)}
-                  </Typography>
-                </TableCell>
+                <>
+                  {(hourData.hour >= 3 && hourData.hour <= 23) && (
+                    <TableCell key={hourData.hour} align="center" sx={{ minWidth: 40, px: 0.5 }}>
+                      <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                        {formatHourCalifornia(selectedDate, hourData.hour)}
+                      </Typography>
+                    </TableCell>
+                  )}
+                </>
               ))}
               <TableCell align="center" sx={{ minWidth: 60, px: 0.5 }}>
                 <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
@@ -835,31 +845,35 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 </Typography>
               </TableCell>
               {filteredHourlyData.map((hourData) => (
-                <TableCell key={hourData.hour} align="center" sx={{ px: 0.5, py: 1 }}>
-                  <Tooltip
-                    title={renderTooltipContent(hourData.employees)}
-                    placement="top"
-                    arrow
-                  >
-                    <Box>
-                      <>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: '#ff9800', fontWeight: 'bold', lineHeight: 1 }}
-                          >
-                            {hourData.pendingCount}
-                          </Typography>
-                          <Divider sx={{ my: 0.2 }} />
-                          <Typography
-                            variant="body2"
-                            sx={{ color: '#4caf50', fontWeight: 'bold', lineHeight: 1 }}
-                          >
-                            {hourData.approvedCount}
-                          </Typography>
-                      </>
-                    </Box>
-                  </Tooltip>
-                </TableCell>
+                <>
+                  {(hourData.hour >= 3 && hourData.hour <= 23) && (
+                    <TableCell key={hourData.hour} align="center" sx={{ px: 0.5, py: 1 }}>
+                      <Tooltip
+                        title={renderTooltipContent(hourData.employees)}
+                        placement="top"
+                        arrow
+                      >
+                        <Box>
+                          <>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: '#ff9800', fontWeight: 'bold', lineHeight: 1 }}
+                            >
+                              {hourData.pendingCount}
+                            </Typography>
+                            <Divider sx={{ my: 0.2 }} />
+                            <Typography
+                              variant="body2"
+                              sx={{ color: '#4caf50', fontWeight: 'bold', lineHeight: 1 }}
+                            >
+                              {hourData.approvedCount}
+                            </Typography>
+                          </>
+                        </Box>
+                      </Tooltip>
+                    </TableCell>
+                  )}
+                </>
               ))}
               <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                 <Typography variant="body2" fontWeight="bold">
@@ -886,47 +900,51 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                     </Stack>
                   </Box>
                 </TableCell>
-                {employee.hourlyStatus.map((status, hour) => (
-                  <TableCell key={hour} align="center" sx={{ px: 0.5, py: 1 }}>
-                    {status.isWorking ? (
-                      <Tooltip title={`Working: ${status.shift}`} placement="top">
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: status.approved === true ? '#4caf50' : '#ff9800',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            px: 0.5,
-                            py: 0.25,
-                            borderRadius: 1,
-                            '&:hover': {
-                              backgroundColor: status.approved === true
-                                ? 'rgba(76, 175, 80, 0.1)'
-                                : 'rgba(255, 152, 0, 0.1)'
-                            },
-                          }}
-                          onClick={() => {
-                            setEditDialogInfo({ employee, hour });
-                            setEditDialogOpen(true);
-                          }}
-                        >
-                          {status.workingRatio === 1 ? '1' : status.workingRatio}
-                        </Typography>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip title="Add shift" placement="top">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenDialog(employee.userId, hour, employee.name)}
-                          sx={{ width: 20, height: 20, color: '#2196f3', '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2' } }}
-                        >
-                          <AddIcon sx={{ fontSize: '0.8rem' }} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </TableCell>
-                ))}
+                {employee.hourlyStatus.map((status, i) => {
+                  const hour = i + 3;
+                  if (hour < 3 || hour > 23) return null;
+                  return (
+                    <TableCell key={hour} align="center" sx={{ px: 0.5, py: 1 }}>
+                      {status.isWorking ? (
+                        <Tooltip title={`Working: ${status.shift}`} placement="top">
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: status.approved === true ? '#4caf50' : '#ff9800',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              px: 0.5,
+                              py: 0.25,
+                              borderRadius: 1,
+                              '&:hover': {
+                                backgroundColor: status.approved === true
+                                  ? 'rgba(76, 175, 80, 0.1)'
+                                  : 'rgba(255, 152, 0, 0.1)'
+                              },
+                            }}
+                            onClick={() => {
+                              setEditDialogInfo({ employee, hour });
+                              setEditDialogOpen(true);
+                            }}
+                          >
+                            {status.workingRatio === 1 ? '1' : status.workingRatio}
+                          </Typography>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip title="Add shift" placement="top">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenDialog(employee.userId, hour, employee.name)}
+                            sx={{ width: 20, height: 20, color: '#2196f3', '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2' } }}
+                          >
+                            <AddIcon sx={{ fontSize: '0.8rem' }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  );
+                })}
                 <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                   <Typography variant="body2" fontWeight="bold">
                     {getEmployeeTotalHours(employee)}

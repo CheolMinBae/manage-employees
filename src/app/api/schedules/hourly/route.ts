@@ -27,8 +27,9 @@ export async function GET(req: NextRequest) {
 
     const userMap = new Map(allUsers.map((u: any) => [u._id.toString(), u]));
 
-    // 시간대별 근무자 계산
-    const hourlyData = Array.from({ length: 24 }, (_, hour) => {
+    // 시간대별 근무자 계산 (캘리포니아 시간 기준 3am~11pm)
+    const hourlyData = Array.from({ length: 21 }, (_, i) => {
+      const hour = i + 3; // 3~23 (캘리포니아 현지 시간)
       const workingEmployees: Array<{
         name: string;
         position: string;
@@ -37,17 +38,18 @@ export async function GET(req: NextRequest) {
       }> = [];
 
       schedules.forEach(schedule => {
+        // start, end는 이미 캘리포니아 현지 시간 문자열임
         const startHour = parseInt(schedule.start.split(':')[0]);
         const startMinute = parseInt(schedule.start.split(':')[1]);
         const endHour = parseInt(schedule.end.split(':')[0]);
         const endMinute = parseInt(schedule.end.split(':')[1]);
 
-        // 시작 시간과 종료 시간을 분 단위로 변환
+        // 시작 시간과 종료 시간을 분 단위로 변환 (캘리포니아 현지 시간)
         const startTotalMinutes = startHour * 60 + startMinute;
         const endTotalMinutes = endHour * 60 + endMinute;
         const currentHourMinutes = hour * 60;
 
-        // 현재 시간이 근무 시간에 포함되는지 확인
+        // 현재 시간이 근무 시간에 포함되는지 확인 (캘리포니아 현지 시간)
         // 시간 경계에서는 시작 시간은 포함, 종료 시간은 제외
         if (currentHourMinutes >= startTotalMinutes && currentHourMinutes < endTotalMinutes) {
           const user = userMap.get(schedule.userId);
@@ -69,11 +71,12 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 개별 직원의 시간대별 근무 상태 계산
+    // 개별 직원의 시간대별 근무 상태 계산 (캘리포니아 시간 기준 3am~11pm)
     const employeeSchedules = allUsers.map((user: any) => {
       const userSchedules = schedules.filter(s => s.userId === user._id.toString());
-      const hourlyStatus = Array.from({ length: 24 }, (_, hour) => {
-        const currentHourStart = hour * 60; // 현재 시간의 시작 (분 단위)
+      const hourlyStatus = Array.from({ length: 21 }, (_, i) => {
+        const hour = i + 3; // 3~23
+        const currentHourStart = hour * 60; // 현재 시간의 시작 (분 단위, 캘리포니아 현지 시간)
         const currentHourEnd = (hour + 1) * 60; // 현재 시간의 끝 (분 단위)
         
         let totalWorkingMinutes = 0;
@@ -89,7 +92,7 @@ export async function GET(req: NextRequest) {
           const startTotalMinutes = startHour * 60 + startMinute;
           const endTotalMinutes = endHour * 60 + endMinute;
 
-          // 현재 시간대와 근무 시간의 겹치는 부분 계산
+          // 현재 시간대와 근무 시간의 겹치는 부분 계산 (캘리포니아 현지 시간)
           const overlapStart = Math.max(currentHourStart, startTotalMinutes);
           const overlapEnd = Math.min(currentHourEnd, endTotalMinutes);
           
