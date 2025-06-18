@@ -20,6 +20,8 @@ import { useEffect, useState, useRef } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { useSession } from 'next-auth/react';
 import EditShiftDialog from '../schedule/EditShiftDialog';
+import { formatInTimeZone } from 'date-fns-tz';
+import { CALIFORNIA_TIMEZONE } from '@/constants/dateConfig';
 
 interface Employee {
   name: string;
@@ -30,7 +32,8 @@ interface Employee {
 
 interface HourlyData {
   hour: number;
-  count: number;
+  pendingCount: number;
+  approvedCount: number;
   employees: Employee[];
 }
 
@@ -46,6 +49,7 @@ interface EmployeeSchedule {
     isWorking: boolean;
     workingRatio: number;
     shift: string | null;
+    approved: boolean;
   }>;
   hasSchedule: boolean;
 }
@@ -345,7 +349,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const response = await fetch(`/api/schedules/hourly?date=${dateStr}`, {
+      const response = await fetch(`/api/schedules/hourly?date=${dateStr}&includeAdmin=true`, {
         cache: 'no-store', // 캐시 무시하여 최신 데이터 가져오기
       });
       const result = await response.json();
@@ -371,15 +375,24 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     return nameMatch && userTypeMatch && companyMatch && categoryMatch;
   }) || [];
 
-  // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산
+  // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산 (pending/approved 분리)
   const filteredHourlyData = data?.hourlyData.map(hourData => {
-    const count = filteredEmployees.reduce((sum, emp) => {
+    let pendingCount = 0;
+    let approvedCount = 0;
+    filteredEmployees.forEach(emp => {
       const status = emp.hourlyStatus?.[hourData.hour];
-      return sum + (status?.workingRatio || 0);
-    }, 0);
+      if (status?.workingRatio) {
+        if (status.approved === true) {
+          approvedCount += status.workingRatio;
+        } else {
+          pendingCount += status.workingRatio;
+        }
+      }
+    });
     return {
       ...hourData,
-      count,
+      pendingCount,
+      approvedCount,
       employees: filteredEmployees
     };
   }) || [];
@@ -561,6 +574,14 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     return (employee.hourlyStatus || []).reduce((sum: number, status: any) => sum + (status?.workingRatio || 0), 0);
   };
 
+  // 시간대 변환 함수 (캘리포니아 시간 기준)
+  const formatHourCalifornia = (date: Date, hour: number) => {
+    // date는 현재 선택된 날짜, hour는 0~23
+    const base = new Date(date);
+    base.setHours(hour, 0, 0, 0);
+    return formatInTimeZone(base, CALIFORNIA_TIMEZONE, 'haaa');
+  };
+
   if (loading) {
     return (
       <Box>
@@ -603,6 +624,10 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
 
   return (
     <Box>
+      {/* 캘리포니아 시간 안내 */}
+      <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+        All times are displayed in California (Pacific Time, America/Los_Angeles) time zone.
+      </Typography>
       <Box display="flex" alignItems="center" gap={1} sx={{ mb: 2 }}>
         <Typography variant="h6">
           ⏰ Hourly Staffing
@@ -790,7 +815,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               {data.hourlyData.map((hourData) => (
                 <TableCell key={hourData.hour} align="center" sx={{ minWidth: 40, px: 0.5 }}>
                   <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-                    {formatHour(hourData.hour)}
+                    {formatHourCalifornia(selectedDate, hourData.hour)}
                   </Typography>
                 </TableCell>
               ))}
@@ -802,7 +827,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
             </TableRow>
           </TableHead>
           <TableBody>
-            {/* Total Count Row */}
+            {/* Total Count Row (pending/approved 분리 표기) */}
             <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
               <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: '#f5f5f5', zIndex: 1 }}>
                 <Typography variant="body2" fontWeight="bold">
@@ -816,22 +841,23 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                     placement="top"
                     arrow
                   >
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: getCountColor(hourData.count),
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        '&:hover': {
-                          backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                          borderRadius: 1,
-                        },
-                        px: 0.5,
-                        py: 0.25,
-                      }}
-                    >
-                      {hourData.count ? hourData.count : ''}
-                    </Typography>
+                    <Box>
+                      <>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: '#ff9800', fontWeight: 'bold', lineHeight: 1 }}
+                          >
+                            {hourData.pendingCount}
+                          </Typography>
+                          <Divider sx={{ my: 0.2 }} />
+                          <Typography
+                            variant="body2"
+                            sx={{ color: '#4caf50', fontWeight: 'bold', lineHeight: 1 }}
+                          >
+                            {hourData.approvedCount}
+                          </Typography>
+                      </>
+                    </Box>
                   </Tooltip>
                 </TableCell>
               ))}
@@ -867,16 +893,18 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                         <Typography
                           variant="caption"
                           sx={{
-                            color: '#4caf50',
+                            color: status.approved === true ? '#4caf50' : '#ff9800',
                             fontWeight: 'bold',
                             cursor: 'pointer',
                             fontSize: '0.75rem',
-                            '&:hover': {
-                              backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                              borderRadius: 1,
-                            },
                             px: 0.5,
                             py: 0.25,
+                            borderRadius: 1,
+                            '&:hover': {
+                              backgroundColor: status.approved === true
+                                ? 'rgba(76, 175, 80, 0.1)'
+                                : 'rgba(255, 152, 0, 0.1)'
+                            },
                           }}
                           onClick={() => {
                             setEditDialogInfo({ employee, hour });

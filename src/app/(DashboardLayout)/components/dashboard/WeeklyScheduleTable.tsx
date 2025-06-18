@@ -8,7 +8,7 @@ import {
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import { useSession } from 'next-auth/react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import dayjs, { Dayjs } from 'dayjs';
 import { format, parseISO } from 'date-fns';
 import ApprovalDialog from '@/app/(DashboardLayout)/components/approve/ApprovalDialog';
@@ -97,10 +97,35 @@ export default function WeeklyScheduleTable({
     userName: string;
   } | null>(null);
 
-  const filteredData = useMemo(() => {
-    if (userPosition === 'employee') {
-      return scheduleData.filter((u) => u.name === userName);
+  // publish 상태
+  const [isPublishable, setIsPublishable] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  // 모든 스케줄 approved 여부 체크 (API 연동 전 임시 로직)
+  useEffect(() => {
+    if (!scheduleData || scheduleData.length === 0) {
+      setIsPublishable(false);
+      return;
     }
+    // 모든 slot이 approved인지 확인
+    const allApproved = scheduleData.every(user =>
+      user.shifts.every(day =>
+        day.slots.every(slot => slot.status === 'approved')
+      )
+    );
+    setIsPublishable(allApproved);
+  }, [scheduleData]);
+
+  const handlePublish = async () => {
+    setPublishing(true);
+    // TODO: API 연동
+    setTimeout(() => {
+      setPublishing(false);
+      alert('Published!');
+    }, 1000);
+  };
+
+  const filteredData = useMemo(() => {
     const filtered = scheduleData;
     if (!keyword.trim()) return filtered;
     return filtered.filter((u) => {
@@ -382,7 +407,20 @@ export default function WeeklyScheduleTable({
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5">🗓️ Weekly Schedule</Typography>
+        <Box display="flex" alignItems="center" gap={1}>
+          {/* Publish 버튼 */}
+          <Button
+            variant="contained"
+            color="success"
+            size="small"
+            disabled={!isPublishable || publishing}
+            onClick={handlePublish}
+            sx={{ minWidth: 90 }}
+          >
+            {publishing ? 'Publishing...' : 'Publish'}
+          </Button>
+          <Typography variant="h5">🗓️ Weekly Schedule</Typography>
+        </Box>
         <Box display="flex" alignItems="center" gap={1}>
           <IconButton onClick={() => onWeekChange('prev')}>
             <ArrowBackIosNewIcon fontSize="small" />

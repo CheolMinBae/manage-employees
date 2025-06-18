@@ -16,12 +16,11 @@ export async function GET(req: NextRequest) {
     // 해당 날짜의 승인된 스케줄만 가져오기
     const schedules = await Schedule.find({
       date: date,
-      approved: true
     }).lean();
 
     // 모든 직원 정보 가져오기 (position이 employee인 사용자만)
     const allUsers = await SignupUser.find({
-      position: 'employee'
+      ...(searchParams.get('includeAdmin') !== 'true' ? { position: 'employee' } : {})
     })
       .select('_id name position corp eid category userType')
       .lean();
@@ -79,6 +78,7 @@ export async function GET(req: NextRequest) {
         
         let totalWorkingMinutes = 0;
         let shifts: string[] = [];
+        let approved: boolean | undefined = undefined;
         
         for (const schedule of userSchedules) {
           const startHour = parseInt(schedule.start.split(':')[0]);
@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
           if (overlapStart < overlapEnd) {
             totalWorkingMinutes += (overlapEnd - overlapStart);
             shifts.push(`${schedule.start}-${schedule.end}`);
+            approved = schedule.approved;
           }
         }
         
@@ -104,7 +105,8 @@ export async function GET(req: NextRequest) {
         return {
           isWorking: workingRatio > 0,
           workingRatio: workingRatio,
-          shift: shifts.length > 0 ? shifts.join(', ') : null
+          shift: shifts.length > 0 ? shifts.join(', ') : null,
+          approved: approved
         };
       });
 

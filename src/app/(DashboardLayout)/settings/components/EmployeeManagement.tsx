@@ -131,17 +131,17 @@ export default function EmployeeManagement() {
       
       switch (searchType) {
         case 'name':
-          return employee.name.toLowerCase().includes(value);
+          return (employee.name || '').toLowerCase().includes(value);
         case 'email':
-          return employee.email.toLowerCase().includes(value);
+          return (employee.email || '').toLowerCase().includes(value);
         case 'eid':
-          return employee.eid.toLowerCase().includes(value);
+          return (employee.eid || '').toLowerCase().includes(value);
         case 'position':
-          return employee.position.toLowerCase() === value;
+          return (employee.position || '').toLowerCase() === value;
         case 'userType':
-          return employee.userType.toLowerCase().includes(value);
+          return (employee.userType || '').toLowerCase().includes(value);
         case 'corp':
-          return employee.corp.toLowerCase() === value;
+          return (employee.corp || '').toLowerCase() === value;
         default:
           return true;
       }

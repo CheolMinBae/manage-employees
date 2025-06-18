@@ -64,11 +64,6 @@ export default function EditShiftDialog({
   const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // 템플릿 관련 상태
-  const [useTemplate, setUseTemplate] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
-  
   // Split Sessions 관련 상태
   const [isSeparated, setIsSeparated] = useState(false);
   const [sessions, setSessions] = useState<WorkSession[]>([
@@ -108,11 +103,9 @@ export default function EditShiftDialog({
     }
   }, [open, slot]);
 
-  // Reset template states and split sessions when dialog opens
+  // Reset split sessions when dialog opens
   useEffect(() => {
     if (open) {
-      setUseTemplate(false);
-      setSelectedTemplate('');
       setIsSeparated(false);
       setSessions([
         { start: null, end: null },
@@ -120,28 +113,6 @@ export default function EditShiftDialog({
       ]);
     }
   }, [open]);
-
-  // Fetch templates (admin only)
-  useEffect(() => {
-    const fetchTemplates = async () => {
-      if (!(isAdmin || isEmployee)) return;
-
-      try {
-        const response = await fetch('/api/schedule-templates');
-        if (response.ok) {
-          const data = await response.json();
-          const activeTemplates = data.filter((template: ScheduleTemplate) => template.isActive);
-          setTemplates(activeTemplates.sort((a: ScheduleTemplate, b: ScheduleTemplate) => a.order - b.order));
-        }
-      } catch (error) {
-        console.error('Error fetching templates:', error);
-      }
-    };
-
-    if (open && (isAdmin || isEmployee)) {
-      fetchTemplates();
-    }
-  }, [open, isAdmin, isEmployee]);
 
   // Check if a time conflicts with existing schedules
   const isTimeConflicted = (time: Dayjs) => {
@@ -202,64 +173,7 @@ export default function EditShiftDialog({
     ]);
   };
 
-  const handleTemplateSubmit = async () => {
-    if (!selectedTemplate || !slot) return;
-
-    const template = templates.find(t => t._id === selectedTemplate);
-    if (!template) return;
-
-    setLoading(true);
-    try {
-      // 1. 해당 날짜의 모든 기존 스케줄 삭제
-      const existingSchedulesResponse = await fetch(`/api/schedules?userId=${slot.userId}&date=${slot.date}`);
-      if (existingSchedulesResponse.ok) {
-        const existingSchedules = await existingSchedulesResponse.json();
-        
-        // 기존 스케줄들 삭제
-        await Promise.all(
-          existingSchedules.map((schedule: any) =>
-            fetch(`/api/schedules?id=${schedule._id}`, {
-              method: 'DELETE',
-            })
-          )
-        );
-      }
-
-      // 2. 템플릿으로 새 스케줄 생성
-      const newSchedule = {
-        userId: slot.userId,
-        date: slot.date,
-        start: template.startTime,
-        end: template.endTime,
-        approved: true, // admin이 템플릿으로 생성하면 자동 승인
-      };
-
-      const response = await fetch('/api/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSchedule),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create schedule from template');
-      }
-
-      onClose();
-      fetchSchedules();
-    } catch (error) {
-      console.error('Error applying template:', error);
-      alert('템플릿 적용 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleEditSave = async () => {
-    if (useTemplate) {
-      await handleTemplateSubmit();
-      return;
-    }
-
     if (!slot || !editStart || !editEnd) return;
 
     setLoading(true);
@@ -412,140 +326,88 @@ export default function EditShiftDialog({
             Editing schedule for {slot?.date}
           </Alert>
 
-          {/* Admin Template Selection */}
-          {isAdmin && (
-            <Box sx={{ mb: 3 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={useTemplate}
-                    onChange={(e) => {
-                      setUseTemplate(e.target.checked);
-                      if (!e.target.checked) {
-                        setSelectedTemplate('');
-                      }
-                    }}
-                  />
-                }
-                label="Force Schedule Templates 사용"
+          {/* Always show manual edit UI */}
+          <Box>
+            <Typography variant="subtitle1" gutterBottom>
+              Work Time
+            </Typography>
+            <Stack direction="row" spacing={2}>
+              <TimePicker
+                label="Start Time"
+                value={editStart}
+                onChange={setEditStart}
+                shouldDisableTime={shouldDisableTime}
+                disabled={loading}
+                sx={{ flex: 1 }}
               />
-              
-              {useTemplate && (
-                <Box sx={{ mt: 2 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>스케줄 템플릿 선택</InputLabel>
-                    <Select
-                      value={selectedTemplate}
-                      label="스케줄 템플릿 선택"
-                      onChange={(e) => setSelectedTemplate(e.target.value)}
-                    >
-                      {templates.map((template) => (
-                        <MenuItem key={template._id} value={template._id}>
-                          {template.displayName} ({template.startTime} - {template.endTime})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  
-                                      {selectedTemplate && (
-                      <Alert severity="warning" sx={{ mt: 2 }}>
-                        <Typography variant="body2">
-                          <strong>Warning:</strong> Applying a template will delete all existing schedules for that date 
-                          and replace them with the selected template.
-                        </Typography>
-                      </Alert>
-                    )}
-                </Box>
-              )}
-              
-              <Divider sx={{ my: 3 }} />
+              <TimePicker
+                label="End Time"
+                value={editEnd}
+                onChange={setEditEnd}
+                shouldDisableTime={shouldDisableTime}
+                disabled={loading}
+                sx={{ flex: 1 }}
+              />
+            </Stack>
+          </Box>
+
+          {hasMealBreak() && (
+            <Box>
+              <Button
+                variant={isSeparated ? "outlined" : "contained"}
+                onClick={isSeparated ? handleCombine : handleSeparate}
+                fullWidth
+                disabled={loading}
+              >
+                {isSeparated ? "Combine Sessions" : "Split Sessions"}
+              </Button>
             </Box>
           )}
 
-          {/* Manual Edit (hidden when using template) */}
-          {!useTemplate && (
+          {isSeparated && (
             <>
+              <Divider />
               <Box>
                 <Typography variant="subtitle1" gutterBottom>
-                  Work Time
+                  First Session
                 </Typography>
                 <Stack direction="row" spacing={2}>
                   <TimePicker
-                    label="Start Time"
-                    value={editStart}
-                    onChange={setEditStart}
-                    shouldDisableTime={shouldDisableTime}
-                    disabled={loading}
+                    label="Start"
+                    value={sessions[0].start}
+                    disabled
                     sx={{ flex: 1 }}
                   />
                   <TimePicker
-                    label="End Time"
-                    value={editEnd}
-                    onChange={setEditEnd}
-                    shouldDisableTime={shouldDisableTime}
-                    disabled={loading}
+                    label="End"
+                    value={sessions[0].end}
+                    disabled
                     sx={{ flex: 1 }}
                   />
                 </Stack>
               </Box>
 
-              {hasMealBreak() && (
-                <Box>
-                  <Button
-                    variant={isSeparated ? "outlined" : "contained"}
-                    onClick={isSeparated ? handleCombine : handleSeparate}
-                    fullWidth
-                    disabled={loading}
-                  >
-                    {isSeparated ? "Combine Sessions" : "Split Sessions"}
-                  </Button>
-                </Box>
-              )}
-
-              {isSeparated && (
-                <>
-                  <Divider />
-                  <Box>
-                    <Typography variant="subtitle1" gutterBottom>
-                      First Session
-                    </Typography>
-                    <Stack direction="row" spacing={2}>
-                      <TimePicker
-                        label="Start"
-                        value={sessions[0].start}
-                        disabled
-                        sx={{ flex: 1 }}
-                      />
-                      <TimePicker
-                        label="End"
-                        value={sessions[0].end}
-                        disabled
-                        sx={{ flex: 1 }}
-                      />
-                    </Stack>
-                  </Box>
-
-                  <Box>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Second Session
-                    </Typography>
-                    <Stack direction="row" spacing={2}>
-                      <TimePicker
-                        label="Start"
-                        value={sessions[1].start}
-                        disabled
-                        sx={{ flex: 1 }}
-                      />
-                      <TimePicker
-                        label="End"
-                        value={sessions[1].end}
-                        disabled
-                        sx={{ flex: 1 }}
-                      />
-                    </Stack>
-                  </Box>
-                </>
-              )}
+              <Box>
+                <Typography variant="subtitle1" gutterBottom>
+                  Second Session
+                </Typography>
+                <Stack direction="row" spacing={2}>
+                  <TimePicker
+                    label="Start"
+                    value={sessions[1].start}
+                    disabled
+                    sx={{ flex: 1 }}
+                  />
+                  <TimePicker
+                    label="End"
+                    value={sessions[1].end}
+                    disabled
+                    sx={{ flex: 1 }}
+                  />
+                </Stack>
+              </Box>
+            </>
+          )}
 
           {existingSchedules.length > 0 && (
             <Box>
@@ -566,8 +428,6 @@ export default function EditShiftDialog({
                 ))}
               </Stack>
             </Box>
-          )}
-            </>
           )}
         </Stack>
       </DialogContent>
@@ -597,9 +457,9 @@ export default function EditShiftDialog({
             <Button 
               variant="contained" 
               onClick={handleEditSave}
-              disabled={loading || (useTemplate && !selectedTemplate)}
+              disabled={loading}
             >
-              {useTemplate ? 'Apply Template' : 'Save'}
+              Save
             </Button>
           </Box>
         </Stack>

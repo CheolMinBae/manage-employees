@@ -33,6 +33,7 @@ interface SlotForm {
   date: Dayjs | null;
   start: Dayjs | null;
   end: Dayjs | null;
+  selectedTemplate?: string;
 }
 
 interface ExistingShift {
@@ -89,6 +90,8 @@ export default function AddShiftDialog({
   const [useTemplate, setUseTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
+  const [templateStart, setTemplateStart] = useState<Dayjs | null>(null);
+  const [templateEnd, setTemplateEnd] = useState<Dayjs | null>(null);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -134,8 +137,9 @@ export default function AddShiftDialog({
   // Reset template states when dialog opens
   useEffect(() => {
     if (open) {
-      setUseTemplate(false);
       setSelectedTemplate('');
+      setTemplateStart(null);
+      setTemplateEnd(null);
     }
   }, [open]);
 
@@ -160,6 +164,17 @@ export default function AddShiftDialog({
       fetchTemplates();
     }
   }, [open, isAdmin, isEmployee]);
+
+  // 템플릿 선택 시 시간 세팅
+  useEffect(() => {
+    if (selectedTemplate) {
+      const template = templates.find(t => t._id === selectedTemplate);
+      if (template) {
+        setTemplateStart(dayjs(`2023-01-01 ${template.startTime}`));
+        setTemplateEnd(dayjs(`2023-01-01 ${template.endTime}`));
+      }
+    }
+  }, [selectedTemplate, templates]);
 
   // Check if a time conflicts with existing schedules for a specific date
   const isTimeConflicted = (time: Dayjs, targetDate: string, excludeSlotId?: string) => {
@@ -219,7 +234,6 @@ export default function AddShiftDialog({
   };
 
   const handleAddSlot = () => {
-    if (!selectedDate) return;
     setSlotForms((prev) => [
       ...prev,
       {
@@ -227,6 +241,7 @@ export default function AddShiftDialog({
         date: selectedDate,
         start: null,
         end: null,
+        selectedTemplate: '',
       },
     ]);
   };
@@ -261,9 +276,9 @@ export default function AddShiftDialog({
       const newSchedule = {
         userId,
         date: selectedDate.format('YYYY-MM-DD'),
-        start: template.startTime,
-        end: template.endTime,
-        approved: true, // admin이 템플릿으로 생성하면 자동 승인
+        start: templateStart ? templateStart.format('HH:mm') : template?.startTime,
+        end: templateEnd ? templateEnd.format('HH:mm') : template?.endTime,
+        approved: false, // admin이 템플릿으로 생성하면 자동 승인
       };
 
       const response = await fetch('/api/schedules', {
@@ -353,15 +368,34 @@ export default function AddShiftDialog({
                     ))}
                   </Select>
                 </FormControl>
-                
-                                  {selectedTemplate && (
+                {selectedTemplate && (
+                  <Box sx={{ mt: 2 }}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <TimePicker
+                          label="Start Time"
+                          value={templateStart}
+                          onChange={setTemplateStart}
+                          slotProps={{ textField: { fullWidth: true } }}
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TimePicker
+                          label="End Time"
+                          value={templateEnd}
+                          onChange={setTemplateEnd}
+                          slotProps={{ textField: { fullWidth: true } }}
+                        />
+                      </Grid>
+                    </Grid>
                     <Alert severity="warning" sx={{ mt: 2 }}>
                       <Typography variant="body2">
                         <strong>Warning:</strong> Applying a template will delete all existing schedules for that date 
                         and replace them with the selected template.
                       </Typography>
                     </Alert>
-                  )}
+                  </Box>
+                )}
               </Box>
             )}
             
@@ -372,63 +406,88 @@ export default function AddShiftDialog({
         {!useTemplate && (
           <Box>
             {slotForms.map((slot) => {
-          const existingForDate = slot.date ? getExistingSchedulesForDate(slot.date.format('YYYY-MM-DD')) : [];
-          
-          return (
-            <div key={slot.id} style={{ marginBottom: '1.5rem' }}>
-              <Grid container spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                <Grid item xs={12}>
-                  <DatePicker
-                    label="Date"
-                    value={slot.date}
-                    onChange={(newDate) => handleSlotChange(slot.id, 'date', newDate)}
-                    slotProps={{ textField: { fullWidth: true, error: false } }}
-                  />
-                </Grid>
-              </Grid>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={4}>
-                  <TimePicker
-                    label="Start Time"
-                    value={slot.start}
-                    onChange={(newStart) => handleSlotChange(slot.id, 'start', newStart)}
-                    shouldDisableTime={shouldDisableTime(slot.id)}
-                    views={['hours', 'minutes']}
-                    slotProps={{ textField: { fullWidth: true, error: false } }}
-                  />
-                </Grid>
-                <Grid item xs={4}>
-                  <TimePicker
-                    label="End Time"
-                    value={slot.end}
-                    onChange={(newEnd) => handleSlotChange(slot.id, 'end', newEnd)}
-                    shouldDisableTime={shouldDisableTime(slot.id)}
-                    views={['hours', 'minutes']}
-                    slotProps={{ textField: { fullWidth: true, error: false } }}
-                  />
-                </Grid>
-                <Grid item xs={4} sx={{ display: 'flex', alignItems: 'center' }}>
-                  <IconButton onClick={() => handleRemoveSlot(slot.id)} aria-label="delete">
-                    <DeleteIcon />
-                  </IconButton>
-                </Grid>
-              </Grid>
-              {existingForDate.length > 0 && (
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Existing schedules for {slot.date?.format('YYYY-MM-DD')}: {existingForDate.map(s => `${s.start}-${s.end}`).join(', ')}
-                  </Typography>
-                </Box>
-              )}
-            </div>
-          );
-        })}
-
-            <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddSlot} sx={{ mt: 1 }}>
-              Add Slot
-            </Button>
+              const existingForDate = slot.date ? getExistingSchedulesForDate(slot.date.format('YYYY-MM-DD')) : [];
+              return (
+                <div key={slot.id} style={{ marginBottom: '1.5rem' }}>
+                  <Grid container spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                    <Grid item xs={4}>
+                      <DatePicker
+                        label="Date"
+                        value={slot.date}
+                        onChange={(newDate) => handleSlotChange(slot.id, 'date', newDate)}
+                        slotProps={{ textField: { fullWidth: true, error: false } }}
+                      />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <FormControl fullWidth>
+                        <InputLabel>Template</InputLabel>
+                        <Select
+                          value={slot.selectedTemplate || ''}
+                          label="Template"
+                          onChange={(e) => {
+                            const templateId = e.target.value;
+                            const template = templates.find(t => t._id === templateId);
+                            setSlotForms((prev) =>
+                              prev.map((s) =>
+                                s.id === slot.id
+                                  ? {
+                                      ...s,
+                                      selectedTemplate: templateId,
+                                      start: template ? dayjs(`2023-01-01 ${template.startTime}`) : null,
+                                      end: template ? dayjs(`2023-01-01 ${template.endTime}`) : null,
+                                    }
+                                  : s
+                              )
+                            );
+                          }}
+                        >
+                          {templates.map((template) => (
+                            <MenuItem key={template._id} value={template._id}>
+                              {template.displayName} ({template.startTime} - {template.endTime})
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={2} sx={{ display: 'flex', alignItems: 'center' }}>
+                      <IconButton onClick={() => handleRemoveSlot(slot.id)} aria-label="delete">
+                        <DeleteIcon />
+                      </IconButton>
+                    </Grid>
+                  </Grid>
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={6}>
+                      <TimePicker
+                        label="Start Time"
+                        value={slot.start}
+                        onChange={(newStart) => handleSlotChange(slot.id, 'start', newStart)}
+                        slotProps={{ textField: { fullWidth: true, error: false } }}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TimePicker
+                        label="End Time"
+                        value={slot.end}
+                        onChange={(newEnd) => handleSlotChange(slot.id, 'end', newEnd)}
+                        slotProps={{ textField: { fullWidth: true, error: false } }}
+                      />
+                    </Grid>
+                  </Grid>
+                  {existingForDate.length > 0 && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Existing schedules for {slot.date?.format('YYYY-MM-DD')}: {existingForDate.map(s => `${s.start}-${s.end}`).join(', ')}
+                      </Typography>
+                    </Box>
+                  )}
+                </div>
+              );
+            })}
           </Box>
         )}
+        <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddSlot} sx={{ mt: 1 }}>
+          Add Slot
+        </Button>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>

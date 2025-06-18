@@ -57,6 +57,13 @@ const Header = ({ toggleMobileSidebar }: ItemType) => {
 
         <Box flexGrow={1} />
 
+        {/* 기준 시간대 안내 */}
+        <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', mr: 2 }}>
+          <Typography variant="caption" color="text.secondary">
+            Time Zone: California (Pacific Time, America/Los_Angeles)
+          </Typography>
+        </Box>
+
         <Stack spacing={1} direction="row" alignItems="center">
           {!session ? (
             <Button
