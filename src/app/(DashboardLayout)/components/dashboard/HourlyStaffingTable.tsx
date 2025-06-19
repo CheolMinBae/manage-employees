@@ -20,7 +20,6 @@ import { useEffect, useState, useRef } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { useSession } from 'next-auth/react';
 import EditShiftDialog from '../schedule/EditShiftDialog';
-import { formatInTimeZone, toDate } from 'date-fns-tz';
 import { CALIFORNIA_TIMEZONE } from '@/constants/dateConfig';
 
 interface Employee {
@@ -477,7 +476,9 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   };
 
   const formatDateHeader = (dateStr: string) => {
-    const date = new Date(dateStr);
+    // 서버에서 전달하는 date 문자열(YYYY-MM-DD)을 직접 파싱하여 시간대 변환 방지
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // 로컬 시간으로 직접 생성
     return format(date, 'MMM d');
   };
 
@@ -575,17 +576,13 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     return (employee.hourlyStatus || []).reduce((sum: number, status: any) => sum + (status?.workingRatio || 0), 0);
   };
 
-  // 시간대 변환 함수 (캘리포니아 시간 기준)
-  const formatHourCalifornia = (date: Date, hour: number) => {
-    // 1. date를 캘리포니아 기준 yyyy-MM-dd로 만듦
-    const baseDateStr = formatInTimeZone(date, CALIFORNIA_TIMEZONE, 'yyyy-MM-dd');
-    // 2. 캘리포니아 기준 3~23시를 'yyyy-MM-ddTHH:00:00'로 만듦
-    const hourStr = String(hour).padStart(2, '0');
-    const caDateTimeStr = `${baseDateStr}T${hourStr}:00:00`;
-    // 3. 이 문자열을 "캘리포니아 시간"으로 해석해서 Date 객체로 변환
-    const caDate = toDate(caDateTimeStr, { timeZone: CALIFORNIA_TIMEZONE });
-    // 4. 라벨은 항상 캘리포니아 타임존 기준으로 출력
-    return formatInTimeZone(caDate, CALIFORNIA_TIMEZONE, 'haaa');
+  // 시간 표시 함수 (서버에서 전달하는 hour 값은 이미 캘리포니아 시간 기준)
+  const formatHourCalifornia = (hour: number) => {
+    // 서버에서 전달하는 hour는 이미 캘리포니아 시간 기준 3-23시
+    if (hour === 0) return '12 AM';
+    if (hour === 12) return '12 PM';
+    if (hour < 12) return `${hour} AM`;
+    return `${hour - 12} PM`;
   };
 
   if (loading) {
@@ -823,7 +820,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   {(hourData.hour >= 3 && hourData.hour <= 23) && (
                     <TableCell key={hourData.hour} align="center" sx={{ minWidth: 40, px: 0.5 }}>
                       <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-                        {formatHourCalifornia(selectedDate, hourData.hour)}
+                        {formatHourCalifornia(hourData.hour)}
                       </Typography>
                     </TableCell>
                   )}
