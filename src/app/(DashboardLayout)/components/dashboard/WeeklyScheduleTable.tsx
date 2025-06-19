@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { useSession } from 'next-auth/react';
 import { useMemo, useState, useEffect } from 'react';
 import dayjs, { Dayjs } from 'dayjs';
@@ -123,6 +124,40 @@ export default function WeeklyScheduleTable({
       setPublishing(false);
       alert('Published!');
     }, 1000);
+  };
+
+  const handleDownloadExcel = async () => {
+    try {
+      const weekStartFormatted = dayjs(weekStart).format('YYYY-MM-DD');
+      console.log('WeeklyScheduleTable Excel Download:', {
+        weekStart,
+        weekStartFormatted,
+        weekStartDay: weekStart.getDay(), // 0=Sunday
+        dates,
+        sortedDates
+      });
+
+      const response = await fetch(`/api/schedules/download?weekStart=${weekStartFormatted}`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download excel file');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `weekly-schedule-${weekStartFormatted}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading excel:', error);
+      alert('Failed to download excel file');
+    }
   };
 
   const filteredData = useMemo(() => {
@@ -418,6 +453,17 @@ export default function WeeklyScheduleTable({
             sx={{ minWidth: 90 }}
           >
             {publishing ? 'Publishing...' : 'Publish'}
+          </Button>
+          {/* 엑셀 다운로드 버튼 추가 */}
+          <Button
+            variant="outlined"
+            color="primary"
+            size="small"
+            onClick={handleDownloadExcel}
+            startIcon={<FileDownloadIcon />}
+            sx={{ minWidth: 90 }}
+          >
+            Excel
           </Button>
           <Typography variant="h5">🗓️ Weekly Schedule</Typography>
         </Box>
