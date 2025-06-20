@@ -170,8 +170,9 @@ export default function WeeklyScheduleTable({
   }, [scheduleData, filterType, keyword, userPosition, userName, trigger]);
 
   const formatDateHeader = (dateStr: string) => {
-    // date-fns를 사용하여 일관된 포맷팅 (브라우저 로케일에 영향받지 않음)
-    const date = parseISO(dateStr);
+    // 서버에서 전달하는 date 문자열(YYYY-MM-DD)을 직접 파싱하여 시간대 변환 방지
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // 로컬 시간으로 직접 생성
     const weekday = format(date, 'EEE'); // Sun, Mon, Tue, etc.
     const monthDay = format(date, 'MMM d'); // Jan 1, Feb 2, etc.
     const result = `${weekday} ${monthDay}`;
