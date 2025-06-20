@@ -85,8 +85,7 @@ export async function GET(req: NextRequest) {
     }));
 
     const schedules = await Schedule.find({
-      date: { $in: weekDates },
-      approved: true
+      date: { $in: weekDates }
     }).lean();
 
     // 새 워크북 생성
@@ -232,21 +231,43 @@ export async function GET(req: NextRequest) {
             vertical: 'middle'
           };
         } else {
-          // 스케줄이 있는 경우 - 여러 방법으로 개행 처리 시도
+          // 스케줄이 있는 경우 - approved/pending 상태에 따라 구분 표시
           const scheduleItems = daySchedules
             .sort((a, b) => a.start.localeCompare(b.start))
-            .map(s => `${s.start}–${s.end}`);
+            .map(s => {
+              const timeText = `${s.start}–${s.end}`;
+              // pending 상태인 경우 (P) 표시 추가
+              return s.approved ? timeText : `${timeText}(P)`;
+            });
 
           if (scheduleItems.length === 1) {
-            // 스케줄이 하나인 경우 일반 텍스트
+            // 스케줄이 하나인 경우
             cell.value = scheduleItems[0];
+            
+            // pending 상태인 경우 배경색 변경
+            const schedule = daySchedules[0];
+            if (!schedule.approved) {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFF2CC' } // 연한 노란색 배경 (pending)
+              };
+            }
           } else {
-            // 여러 스케줄이 있는 경우 - 다양한 방법으로 시도
-            // 방법 1: Windows 스타일 개행 문자 사용 (\r\n)
+            // 여러 스케줄이 있는 경우
             const scheduleText = scheduleItems.join('\r\n');
             cell.value = scheduleText;
             
-            // 방법 2: 추가적으로 수동으로 개행 설정
+            // pending 상태가 포함된 경우 배경색 변경
+            const hasPending = daySchedules.some(s => !s.approved);
+            if (hasPending) {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFF2CC' } // 연한 노란색 배경 (pending 포함)
+              };
+            }
+            
             cell.alignment = {
               horizontal: 'center',
               vertical: 'middle',
@@ -254,13 +275,10 @@ export async function GET(req: NextRequest) {
               shrinkToFit: false
             };
             
-            // 방법 3: 행 높이를 더 크게 설정하여 개행이 보이도록
             if (scheduleItems.length > 1) {
               row.height = Math.max(80, scheduleItems.length * 25);
             }
           }
-
-          // 스케줄이 있는 셀에만 별도 스타일 적용하지 않음
         }
         
         cell.font = { name: 'Arial', size: 10 };
