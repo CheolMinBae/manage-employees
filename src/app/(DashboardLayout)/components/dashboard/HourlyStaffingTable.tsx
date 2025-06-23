@@ -335,6 +335,15 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   const [companyFilter, setCompanyFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
 
+  // 정렬 상태
+  const [sortConfig, setSortConfig] = useState<{
+    hour: number | null;
+    direction: 'asc' | 'desc' | null;
+  }>({
+    hour: null,
+    direction: null
+  });
+
   // 1. Add/Edit Shift Dialog 상태 추가
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editDialogInfo, setEditDialogInfo] = useState<{ employee: EmployeeSchedule; hour: number } | null>(null);
@@ -374,11 +383,26 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     return nameMatch && userTypeMatch && companyMatch && categoryMatch;
   }) || [];
 
+  // 정렬된 직원 데이터
+  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
+    if (!sortConfig.hour || !sortConfig.direction) return 0;
+    
+    const hourIndex = sortConfig.hour - 3; // hour 3-23을 인덱스 0-20으로 변환
+    const aWorkingRatio = a.hourlyStatus?.[hourIndex]?.workingRatio || 0;
+    const bWorkingRatio = b.hourlyStatus?.[hourIndex]?.workingRatio || 0;
+    
+    if (sortConfig.direction === 'desc') {
+      return bWorkingRatio - aWorkingRatio; // 내림차순 (많이 일하는 순)
+    } else {
+      return aWorkingRatio - bWorkingRatio; // 오름차순 (적게 일하는 순)
+    }
+  });
+
   // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산 (pending/approved 분리)
   const filteredHourlyData = data?.hourlyData.map(hourData => {
     let pendingCount = 0;
     let approvedCount = 0;
-    filteredEmployees.forEach(emp => {
+    sortedEmployees.forEach(emp => {
       // 인덱스 보정: hourData.hour(3~23) → hourlyStatus[hourData.hour - 3]
       const status = emp.hourlyStatus?.[hourData.hour - 3];
       if (status?.workingRatio) {
@@ -393,7 +417,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       ...hourData,
       pendingCount,
       approvedCount,
-      employees: filteredEmployees
+      employees: sortedEmployees
     };
   }) || [];
 
@@ -407,6 +431,26 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     setUserTypeFilter([]);
     setCompanyFilter('');
     setCategoryFilter([]);
+    setSortConfig({ hour: null, direction: null }); // 정렬도 초기화
+  };
+
+  // 시간대별 정렬 핸들러
+  const handleHourSort = (hour: number) => {
+    setSortConfig(prevConfig => {
+      if (prevConfig.hour !== hour) {
+        // 다른 시간을 클릭한 경우: 해당 시간으로 내림차순 정렬
+        return { hour, direction: 'desc' };
+      } else {
+        // 같은 시간을 클릭한 경우: 정렬 방향 변경
+        if (prevConfig.direction === 'desc') {
+          return { hour, direction: 'asc' };
+        } else if (prevConfig.direction === 'asc') {
+          return { hour: null, direction: null }; // 정렬 취소
+        } else {
+          return { hour, direction: 'desc' };
+        }
+      }
+    });
   };
 
   const handleAddSchedule = async (startTime: string, endTime: string) => {
@@ -747,6 +791,11 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           </Button>
           <Typography variant="caption" color="text.secondary">
             Showing {filteredEmployees.length} of {data?.employeeSchedules.length || 0} employees
+            {sortConfig.hour && (
+              <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#1976d2' }}>
+                • Sorted by {formatHourCalifornia(sortConfig.hour)} ({sortConfig.direction === 'desc' ? 'Most working first' : 'Least working first'})
+              </span>
+            )}
           </Typography>
         </Box>
       </Box>
@@ -820,10 +869,40 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               {data.hourlyData.map((hourData) => (
                 <>
                   {(hourData.hour >= 3 && hourData.hour <= 23) && (
-                    <TableCell key={hourData.hour} align="center" sx={{ minWidth: 40, px: 0.5 }}>
+                    <TableCell 
+                      key={hourData.hour} 
+                      align="center" 
+                      sx={{ 
+                        minWidth: 40, 
+                        px: 0.5,
+                        cursor: 'pointer',
+                        backgroundColor: sortConfig.hour === hourData.hour 
+                          ? (sortConfig.direction === 'desc' ? '#e3f2fd' : '#fff3e0')
+                          : 'transparent',
+                        '&:hover': {
+                          backgroundColor: sortConfig.hour === hourData.hour 
+                            ? (sortConfig.direction === 'desc' ? '#bbdefb' : '#ffe0b2')
+                            : 'rgba(0, 0, 0, 0.04)'
+                        },
+                        position: 'relative'
+                      }}
+                      onClick={() => handleHourSort(hourData.hour)}
+                    >
                       <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
                         {formatHourCalifornia(hourData.hour)}
                       </Typography>
+                      {sortConfig.hour === hourData.hour && (
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            fontSize: '0.6rem', 
+                            display: 'block',
+                            color: sortConfig.direction === 'desc' ? '#1976d2' : '#f57c00'
+                          }}
+                        >
+                          {sortConfig.direction === 'desc' ? '↓' : '↑'}
+                        </Typography>
+                      )}
                     </TableCell>
                   )}
                 </>
@@ -877,7 +956,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                 <Typography variant="body2" fontWeight="bold">
                   {/* 전체 직원 합계의 합계 */}
-                  {filteredEmployees
+                  {sortedEmployees
                     .reduce((sum, emp) => sum + getEmployeeTotalHours(emp), 0)
                     }
                 </Typography>
@@ -885,7 +964,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
             </TableRow>
 
             {/* Individual Employee Rows */}
-            {filteredEmployees.map((employee) => (
+            {sortedEmployees.map((employee) => (
               <TableRow key={employee.userId}>
                 <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 1 }}>
                   <Box>
@@ -982,6 +1061,9 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         />
         <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
           Individual: 1 = Full hour • 0.x = Partial hour • - = Not working
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
+          💡 Click hour headers to sort by working hours: 1st click = Most working first, 2nd click = Least working first, 3rd click = Reset
         </Typography>
       </Box>
 
