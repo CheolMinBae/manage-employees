@@ -523,7 +523,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     // 서버에서 전달하는 date 문자열(YYYY-MM-DD)을 직접 파싱하여 시간대 변환 방지
     const [year, month, day] = dateStr.split('-').map(Number);
     const date = new Date(year, month - 1, day); // 로컬 시간으로 직접 생성
-    return format(date, 'MMM d');
+    return format(date, 'MMM d (EEE)'); // 요일 3글자 추가
   };
 
   const handleDateChange = (direction: 'prev' | 'next') => {
