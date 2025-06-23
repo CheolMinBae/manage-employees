@@ -5,7 +5,7 @@ import {
   Typography, Paper, Box, Tooltip, Chip, Stack, IconButton, Snackbar, Alert,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem,
   Select, FormControl, InputLabel, OutlinedInput, Popper, ClickAwayListener,
-  Switch, FormControlLabel, Divider
+  Switch, FormControlLabel, Divider, Autocomplete
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -676,28 +676,30 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
             sx={{ minWidth: 200 }}
             placeholder="Search by name..."
           />
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Position</InputLabel>
-            <Select
-              multiple
-              value={userTypeFilter}
-              onChange={(e) => setUserTypeFilter(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-              input={<OutlinedInput label="Position" />}
-              renderValue={(selected) => (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {selected.map((value) => (
-                    <Chip key={value} label={value} size="small" />
-                  ))}
-                </Box>
-              )}
-            >
-              {uniqueUserTypes.map((type) => (
-                <MenuItem key={type} value={type}>
-                  {type}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Autocomplete
+            multiple
+            options={uniqueUserTypes}
+            value={userTypeFilter}
+            onChange={(event, newValue) => setUserTypeFilter(newValue)}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => (
+                <Chip
+                  label={option}
+                  size="small"
+                  {...getTagProps({ index })}
+                />
+              ))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Position"
+                placeholder="검색하여 선택..."
+                size="small"
+              />
+            )}
+            sx={{ minWidth: 200 }}
+          />
           <TextField
             select
             label="Company"
