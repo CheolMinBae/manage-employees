@@ -7,12 +7,29 @@ import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
-// GET: 모든 사용자 조회
-export async function GET() {
+// GET: 모든 사용자 조회 또는 특정 사용자 조회
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get('id');
+
     await connectDB();
-    const users = await SignupUser.find({});
-    return NextResponse.json(users, { status: 200 });
+
+    if (id) {
+      // 특정 사용자 조회
+      const user = await SignupUser.findById(id);
+      if (!user) {
+        return NextResponse.json(
+          { message: 'User not found.' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(user, { status: 200 });
+    } else {
+      // 모든 사용자 조회
+      const users = await SignupUser.find({});
+      return NextResponse.json(users, { status: 200 });
+    }
   } catch (error: any) {
     console.error('Failed to fetch users:', error);
     return NextResponse.json(

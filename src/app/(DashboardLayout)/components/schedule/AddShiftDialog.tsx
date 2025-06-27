@@ -121,6 +121,8 @@ export default function AddShiftDialog({
   // UserType 탭 관련 상태
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [selectedUserType, setSelectedUserType] = useState<string>('');
+  const [allSchedulesByUserType, setAllSchedulesByUserType] = useState<{ [key: string]: any[] }>({});
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -138,7 +140,7 @@ export default function AddShiftDialog({
       end: null,
     };
 
-    setSlotForms([...existing, empty]);
+    setSlotForms([empty]);
   }, [selectedDate, existingShifts]);
 
   // Fetch all existing schedules for the user
@@ -228,6 +230,41 @@ export default function AddShiftDialog({
       fetchUserRoles();
     }
   }, [open, currentUserType]);
+
+  // Fetch schedules for all UserTypes
+  useEffect(() => {
+    const fetchAllUserTypeSchedules = async () => {
+      if (!selectedDate || userRoles.length === 0) return;
+      
+      setLoadingSchedules(true);
+      try {
+        const schedulesByType: { [key: string]: any[] } = {};
+        
+        // Fetch schedules for each user role
+        await Promise.all(
+          userRoles.map(async (role) => {
+            const response = await fetch(`/api/schedules?userType=${role.name}&date=${selectedDate.format('YYYY-MM-DD')}`);
+            if (response.ok) {
+              const data = await response.json();
+              schedulesByType[role.name] = data;
+            } else {
+              schedulesByType[role.name] = [];
+            }
+          })
+        );
+        
+        setAllSchedulesByUserType(schedulesByType);
+      } catch (error) {
+        console.error('Error fetching userType schedules:', error);
+      } finally {
+        setLoadingSchedules(false);
+      }
+    };
+
+    if (open && selectedDate && userRoles.length > 0) {
+      fetchAllUserTypeSchedules();
+    }
+  }, [open, selectedDate, userRoles]);
 
   // 템플릿 선택 시 시간 세팅
   useEffect(() => {
@@ -437,78 +474,11 @@ export default function AddShiftDialog({
           </Tabs>
         </Box>
         {/* Admin Template Selection */}
-        
-        <Box sx={{ mb: 3 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={useTemplate}
-                  onChange={(e) => {
-                    setUseTemplate(e.target.checked);
-                    if (!e.target.checked) {
-                      setSelectedTemplate('');
-                    }
-                  }}
-                />
-              }
-              label="Force Schedule Templates"
-            />
-            
-            {useTemplate && (
-              <Box sx={{ mt: 2 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Select Schedule Template</InputLabel>
-                  <Select
-                    value={selectedTemplate}
-                    label="Select Schedule Template"
-                    onChange={(e) => setSelectedTemplate(e.target.value)}
-                  >
-                    {templates.map((template) => (
-                      <MenuItem key={template._id} value={template._id}>
-                        {template.displayName} ({template.startTime} - {template.endTime})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                {selectedTemplate && (
-                  <Box sx={{ mt: 2 }}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
-                        <TimePicker
-                          label="Start Time"
-                          value={templateStart}
-                          onChange={setTemplateStart}
-                          slotProps={{ textField: { fullWidth: true } }}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TimePicker
-                          label="End Time"
-                          value={templateEnd}
-                          onChange={setTemplateEnd}
-                          slotProps={{ textField: { fullWidth: true } }}
-                        />
-                      </Grid>
-                    </Grid>
-                    <Alert severity="warning" sx={{ mt: 2 }}>
-                      <Typography variant="body2">
-                        <strong>Warning:</strong> Applying a template will delete all existing schedules for that date 
-                        and replace them with the selected template.
-                      </Typography>
-                    </Alert>
-                  </Box>
-                )}
-              </Box>
-            )}
-            
-            <Divider sx={{ my: 3 }} />
-          </Box>
-
         {/* Manual Schedule Input (hidden when using template) */}
         {!useTemplate && (
           <Box>
             {slotForms.map((slot) => {
-              const existingForDate = slot.date ? getExistingSchedulesForDate(slot.date.format('YYYY-MM-DD')) : [];
+              const existingForDate = [];
               return (
                 <div key={slot.id} style={{ marginBottom: '1.5rem' }}>
                   <Grid container spacing={2} alignItems="center" sx={{ mb: 1 }}>
@@ -575,13 +545,13 @@ export default function AddShiftDialog({
                       />
                     </Grid>
                   </Grid>
-                  {existingForDate.length > 0 && (
+                  {/* {existingForDate.length > 0 && (
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="caption" color="text.secondary">
                         Existing schedules for {slot.date?.format('YYYY-MM-DD')}: {existingForDate.map(s => `${s.start}-${s.end}`).join(', ')}
                       </Typography>
                     </Box>
-                  )}
+                  )} */}
                 </div>
               );
             })}
@@ -590,6 +560,58 @@ export default function AddShiftDialog({
         <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddSlot} sx={{ mt: 1 }}>
           Add Slot
         </Button>
+
+        {/* UserType별 스케줄 표시 */}
+        {loadingSchedules ? (
+          <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Loading schedules...
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{ mt: 3 }}>
+            {userRoles.map((role) => {
+              const schedules = allSchedulesByUserType[role.name] || [];
+              return (
+                <Box key={role.key} sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="h6" gutterBottom>
+                    {role.name} Schedules
+                    {selectedDate && ` - ${selectedDate.format('YYYY-MM-DD')}`}
+                  </Typography>
+                  
+                  {schedules.length > 0 ? (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {schedules.map((schedule: any, index: number) => (
+                        <Box
+                          key={schedule._id || index}
+                          sx={{
+                            p: 1,
+                            bgcolor: schedule.approved ? 'success.light' : 'warning.light',
+                            color: '#000',
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                          }}
+                        >
+                          <Typography variant="caption">
+                            {schedule.start}-{schedule.end}
+                            {schedule.approved ? ' ✓' : ' ⏳'}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No schedules found for this user type.
+                    </Typography>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>

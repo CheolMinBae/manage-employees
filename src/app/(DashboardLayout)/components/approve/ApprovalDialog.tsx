@@ -83,6 +83,9 @@ const ApprovalDialog = ({
   // UserType 탭 관련 상태
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [selectedUserType, setSelectedUserType] = useState<string>(currentUserType || '');
+  const [allSchedulesByUserType, setAllSchedulesByUserType] = useState<{ [key: string]: any[] }>({});
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
+  const [targetUserInfo, setTargetUserInfo] = useState<any>(null);
 
   // Reset state when dialog opens and fetch existing schedules
   useEffect(() => {
@@ -96,27 +99,22 @@ const ApprovalDialog = ({
       setExistingSchedules([]);
       setSelectedUserType(currentUserType || '');
 
-      // Fetch user roles
-      const fetchUserRoles = async () => {
+      // Fetch target user info
+      const fetchTargetUserInfo = async () => {
+        if (!userId) return;
+        
         try {
-          const response = await fetch('/api/userrole');
+          const response = await fetch(`/api/users?id=${userId}`);
           if (response.ok) {
             const data = await response.json();
-            
-            // Filter roles based on current user's userType
-            const userUserTypes = Array.isArray(sessionUserType) ? sessionUserType : [];
-            const filteredRoles = data.filter((role: UserRole) => 
-              userUserTypes.some(userType => 
-                role.key.toLowerCase() === userType.toLowerCase()
-              )
-            );
-            
-            setUserRoles(filteredRoles);
+            setTargetUserInfo(data);
           }
         } catch (error) {
-          console.error('Error fetching user roles:', error);
+          console.error('Error fetching target user info:', error);
         }
       };
+
+
 
       // Fetch existing schedules for the selected date and user
       const fetchExistingSchedules = async () => {
@@ -137,10 +135,103 @@ const ApprovalDialog = ({
         }
       };
 
-      fetchUserRoles();
+      // Fetch schedules for all UserTypes
+      const fetchAllUserTypeSchedules = async () => {
+        if (!selectedDate || userRoles.length === 0) return;
+        
+        setLoadingSchedules(true);
+        try {
+          const schedulesByType: { [key: string]: any[] } = {};
+          
+          // Fetch schedules for each user role
+          await Promise.all(
+            userRoles.map(async (role) => {
+              const response = await fetch(`/api/schedules?userType=${role.key}&date=${selectedDate}`);
+              if (response.ok) {
+                const data = await response.json();
+                schedulesByType[role.key] = data;
+              } else {
+                schedulesByType[role.key] = [];
+              }
+            })
+          );
+          
+          setAllSchedulesByUserType(schedulesByType);
+        } catch (error) {
+          console.error('Error fetching userType schedules:', error);
+        } finally {
+          setLoadingSchedules(false);
+        }
+      };
+
+      fetchTargetUserInfo();
       fetchExistingSchedules();
     }
-  }, [open, selectedDate, userId, currentScheduleId, currentUserType, sessionUserType]);
+  }, [open, selectedDate, userId, currentScheduleId, currentUserType]);
+
+  // Fetch user roles when target user info is available
+  useEffect(() => {
+    const fetchUserRoles = async () => {
+      try {
+        const response = await fetch('/api/userrole');
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Filter roles based on target user's userType (not session user's)
+          const targetUserTypes = targetUserInfo?.userType || [];
+          const userUserTypes = Array.isArray(targetUserTypes) ? targetUserTypes : [];
+          const filteredRoles = data.filter((role: UserRole) => 
+            userUserTypes.some((userType: string) => 
+              role.name === userType
+            )
+          );
+          
+          setUserRoles(filteredRoles);
+        }
+      } catch (error) {
+        console.error('Error fetching user roles:', error);
+      }
+    };
+
+    if (targetUserInfo) {
+      fetchUserRoles();
+    }
+  }, [targetUserInfo]);
+
+  // Fetch all UserType schedules when userRoles are available
+  useEffect(() => {
+    const fetchAllUserTypeSchedules = async () => {
+      if (!selectedDate || userRoles.length === 0) return;
+      
+      setLoadingSchedules(true);
+      try {
+        const schedulesByType: { [key: string]: any[] } = {};
+        
+        // Fetch schedules for each user role
+        await Promise.all(
+          userRoles.map(async (role) => {
+            const response = await fetch(`/api/schedules?userType=${role.name}&date=${selectedDate}`);
+            if (response.ok) {
+              const data = await response.json();
+              schedulesByType[role.name] = data;
+            } else {
+              schedulesByType[role.name] = [];
+            }
+          })
+        );
+        
+        setAllSchedulesByUserType(schedulesByType);
+      } catch (error) {
+        console.error('Error fetching userType schedules:', error);
+      } finally {
+        setLoadingSchedules(false);
+      }
+    };
+
+    if (open && selectedDate && userRoles.length > 0) {
+      fetchAllUserTypeSchedules();
+    }
+  }, [open, selectedDate, userRoles]);
 
   // Check if a time conflicts with existing schedules
   const isTimeConflicted = (time: Dayjs) => {
@@ -348,6 +439,58 @@ const ApprovalDialog = ({
             </>
           )}
         </Stack>
+
+        {/* UserType별 스케줄 표시 */}
+        {loadingSchedules ? (
+          <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Loading schedules...
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{ mt: 3 }}>
+                         {userRoles.map((role) => {
+               const schedules = allSchedulesByUserType[role.name] || [];
+               return (
+                 <Box key={role.key} sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="h6" gutterBottom>
+                    {role.name} Schedules
+                    {selectedDate && ` - ${selectedDate}`}
+                  </Typography>
+                  
+                  {schedules.length > 0 ? (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {schedules.map((schedule: any, index: number) => (
+                        <Box
+                          key={schedule._id || index}
+                          sx={{
+                            p: 1,
+                            bgcolor: schedule.approved ? 'success.light' : 'warning.light',
+                            color: '#000',
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                          }}
+                        >
+                          <Typography variant="caption">
+                            {schedule.start}-{schedule.end}
+                            {schedule.approved ? ' ✓' : ' ⏳'}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No schedules found for this user type.
+                    </Typography>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>

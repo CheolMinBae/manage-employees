@@ -99,6 +99,8 @@ export default function EditShiftDialog({
   // UserType 탭 관련 상태
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [selectedUserType, setSelectedUserType] = useState<string>('');
+  const [allSchedulesByUserType, setAllSchedulesByUserType] = useState<{ [key: string]: any[] }>({});
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
 
   useEffect(() => {
     if (slot) {
@@ -135,6 +137,41 @@ export default function EditShiftDialog({
       fetchUserRoles();
     }
   }, [open, currentUserType]);
+
+  // Fetch schedules for all UserTypes
+  useEffect(() => {
+    const fetchAllUserTypeSchedules = async () => {
+      if (!slot?.date || userRoles.length === 0) return;
+      
+      setLoadingSchedules(true);
+      try {
+        const schedulesByType: { [key: string]: any[] } = {};
+        
+        // Fetch schedules for each user role
+        await Promise.all(
+          userRoles.map(async (role) => {
+            const response = await fetch(`/api/schedules?userType=${role.name}&date=${slot.date}`);
+            if (response.ok) {
+              const data = await response.json();
+              schedulesByType[role.name] = data;
+            } else {
+              schedulesByType[role.name] = [];
+            }
+          })
+        );
+        
+        setAllSchedulesByUserType(schedulesByType);
+      } catch (error) {
+        console.error('Error fetching userType schedules:', error);
+      } finally {
+        setLoadingSchedules(false);
+      }
+    };
+
+    if (open && slot?.date && userRoles.length > 0) {
+      fetchAllUserTypeSchedules();
+    }
+  }, [open, slot?.date, userRoles]);
 
   // Fetch existing schedules for the selected date and user
   useEffect(() => {
@@ -525,6 +562,58 @@ export default function EditShiftDialog({
                   />
                 ))}
               </Stack>
+            </Box>
+          )}
+
+          {/* UserType별 스케줄 표시 */}
+          {loadingSchedules ? (
+            <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Loading schedules...
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ mt: 3 }}>
+              {userRoles.map((role) => {
+                const schedules = allSchedulesByUserType[role.name] || [];
+                return (
+                  <Box key={role.key} sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="h6" gutterBottom>
+                      {role.name} Schedules
+                      {slot?.date && ` - ${slot.date}`}
+                    </Typography>
+                    
+                    {schedules.length > 0 ? (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {schedules.map((schedule: any, index: number) => (
+                          <Box
+                            key={schedule._id || index}
+                            sx={{
+                              p: 1,
+                              bgcolor: schedule.approved ? 'success.light' : 'warning.light',
+                              color: '#000',
+                              borderRadius: 1,
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                            }}
+                          >
+                            <Typography variant="caption">
+                             {schedule.start}-{schedule.end}
+                              {schedule.approved ? ' ✓' : ' ⏳'}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No schedules found for this user type.
+                      </Typography>
+                    )}
+                  </Box>
+                );
+              })}
             </Box>
           )}
         </Stack>

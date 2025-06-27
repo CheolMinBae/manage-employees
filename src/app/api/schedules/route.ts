@@ -65,14 +65,50 @@ export async function GET(req: NextRequest) {
     const filterKeyword = searchParams.get('keyword')?.toLowerCase();
     const userId = searchParams.get('userId');
     const date = searchParams.get('date');
+    const userType = searchParams.get('userType');
 
-    // If userId and/or date are provided, return filtered schedules
-    if (userId || date) {
+    // If userId, date, or userType are provided, return filtered schedules
+    if (userId || date || userType) {
       const filter: any = {};
       if (userId) filter.userId = userId;
       if (date) filter.date = date;
+      if (userType) filter.userType = userType;
 
       const schedules = await Schedule.find(filter).lean();
+      
+      // If userType is specified, we need to populate user data
+      if (userType && schedules.length > 0) {
+        const userIds = Array.from(new Set(schedules.map((s: any) => s.userId.toString())));
+        const users = await SignupUser.find({ _id: { $in: userIds } })
+          .select('_id name corp eid category position userType')
+          .lean();
+
+        const userMap = new Map();
+        users.forEach(user => {
+          userMap.set((user._id as any).toString(), {
+            name: user.name,
+            corp: user.corp,
+            eid: user.eid,
+            category: user.category,
+            position: user.userType && user.userType.length > 0 ? user.userType[0] : 'Barista',
+          });
+        });
+
+        const schedulesWithUserData = schedules.map((s: any) => {
+          const user = userMap.get(s.userId.toString());
+          return {
+            ...s,
+            name: user?.name || 'Unknown',
+            corp: user?.corp || 'Unknown',
+            eid: user?.eid || 'Unknown',
+            category: user?.category || 'Unknown',
+            position: user?.position || 'Barista',
+          };
+        });
+
+        return NextResponse.json(schedulesWithUserData);
+      }
+
       return NextResponse.json(schedules);
     }
 
