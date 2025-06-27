@@ -37,7 +37,7 @@ interface Employee {
   name: string;
   email: string;
   position: string;
-  userType: string;
+  userType: string[];
   corp: string;
   eid: string;
   category: string;
@@ -68,7 +68,7 @@ export default function EmployeeManagement() {
     email: '',
     password: '',
     position: 'employee',
-    userType: '',
+    userType: [] as string[],
     corp: '',
     eid: '',
     category: ''
@@ -139,7 +139,7 @@ export default function EmployeeManagement() {
         case 'position':
           return (employee.position || '').toLowerCase() === value;
         case 'userType':
-          return (employee.userType || '').toLowerCase().includes(value);
+          return (employee.userType || []).some(type => type.toLowerCase().includes(value));
         case 'corp':
           return (employee.corp || '').toLowerCase() === value;
         default:
@@ -221,10 +221,10 @@ export default function EmployeeManagement() {
       email: employee.email,
       password: '',
       position: employee.position,
-      userType: employee.userType,
+      userType: employee.userType || [],
       corp: employee.corp,
       eid: employee.eid,
-      category: employee.category
+      category: employee.category,
     });
     setOpenDialog(true);
   };
@@ -275,7 +275,7 @@ export default function EmployeeManagement() {
           email: '',
           password: '',
           position: 'employee',
-          userType: '',
+          userType: [],
           corp: '',
           eid: '',
           category: ''
@@ -287,8 +287,12 @@ export default function EmployeeManagement() {
     }
   };
 
-  const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field: string, value: string | string[]) => {
+    if (field === 'userType') {
+      setFormData(prev => ({ ...prev, [field]: Array.isArray(value) ? value : [value] }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value as string }));
+    }
   };
 
   const handleResetPassword = async (employeeId: string, employeeName: string) => {
@@ -326,7 +330,7 @@ export default function EmployeeManagement() {
               email: '',
               password: '1q2w3e4r',
               position: 'employee',
-              userType: '',
+              userType: [],
               corp: '',
               eid: '',
               category: ''
@@ -405,7 +409,11 @@ export default function EmployeeManagement() {
                 <TableCell>{employee.name}</TableCell>
                 <TableCell>{employee.email}</TableCell>
                 <TableCell>{employee.position}</TableCell>
-                <TableCell>{employee.userType.toLowerCase()}</TableCell>
+                <TableCell>
+                  {Array.isArray(employee.userType) 
+                    ? employee.userType.join(', ').toLowerCase() 
+                    : String(employee.userType || '').toLowerCase()}
+                </TableCell>
                 <TableCell>{employee.corp}</TableCell>
                 <TableCell>{employee.eid}</TableCell>
                 <TableCell>{employee.category}</TableCell>
@@ -471,19 +479,31 @@ export default function EmployeeManagement() {
               <MenuItem value="employee">Employee</MenuItem>
               <MenuItem value="admin">Admin</MenuItem>
             </TextField>
-            <TextField
-              label="Position"
-              select
-              value={formData.userType}
-              onChange={(e) => handleChange('userType', e.target.value)}
-              fullWidth
-            >
-              {userRoles.map((role) => (
-                <MenuItem key={role._id} value={role.key.toLowerCase()}>
-                  {role.name.toLowerCase()}
-                </MenuItem>
-              ))}
-            </TextField>
+            <FormControl fullWidth>
+              <InputLabel>Position</InputLabel>
+              <Select
+                multiple
+                value={Array.isArray(formData.userType) ? formData.userType : []}
+                onChange={(e) => handleChange('userType', e.target.value as string[])}
+                label="Position"
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {(selected as string[]).map((value) => {
+                      const role = userRoles.find(r => r.key.toLowerCase() === value);
+                      return (
+                        <Chip key={value} label={role?.name.toLowerCase() || value} size="small" />
+                      );
+                    })}
+                  </Box>
+                )}
+              >
+                {userRoles.map((role) => (
+                  <MenuItem key={role._id} value={role.key.toLowerCase()}>
+                    {role.name.toLowerCase()}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Corporation"
               select

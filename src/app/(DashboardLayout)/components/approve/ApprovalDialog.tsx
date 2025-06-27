@@ -3,12 +3,13 @@
 
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Stack,
-  Typography, Box, Divider
+  Typography, Box, Divider, Alert, Tabs, Tab
 } from '@mui/material';
 import { TimePicker } from '@mui/x-date-pickers';
 import { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 
 interface Props {
   open: boolean;
@@ -17,11 +18,12 @@ interface Props {
   endTime: Dayjs | null;
   setStartTime: (val: Dayjs | null) => void;
   setEndTime: (val: Dayjs | null) => void;
-  onApprove: (sessions?: WorkSession[]) => void;
+  onApprove: (sessions?: WorkSession[], userType?: string) => void;
   onDelete?: () => void;
   selectedDate?: string;
   userId?: string;
   currentScheduleId?: string;
+  currentUserType?: string;
 }
 
 interface WorkSession {
@@ -35,6 +37,13 @@ interface ExistingSchedule {
   end: string;
 }
 
+interface UserRole {
+  _id: string;
+  key: string;
+  name: string;
+  description?: string;
+}
+
 const ApprovalDialog = ({
   open, onClose,
   startTime, endTime,
@@ -43,14 +52,37 @@ const ApprovalDialog = ({
   onDelete,
   selectedDate,
   userId,
-  currentScheduleId
+  currentScheduleId,
+  currentUserType
 }: Props) => {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.position === 'admin';
+  const sessionUserType = useMemo(() => (session?.user as any)?.userType || [], [session?.user]);
+  const currentUserId = (session?.user as any)?.id;
+  
+  // Check if current user can approve schedules
+  const canApproveSchedule = () => {
+    if (isAdmin) return true;
+    
+    // Check if user has manager role for specific user types
+    if (Array.isArray(sessionUserType)) {
+      return sessionUserType.some(type => 
+        ['manager', 'supervisor', 'team-lead', 'hr'].includes(type.toLowerCase())
+      );
+    }
+    return false;
+  };
+
   const [isSeparated, setIsSeparated] = useState(false);
   const [sessions, setSessions] = useState<WorkSession[]>([
     { start: null, end: null },
     { start: null, end: null }
   ]);
   const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
+
+  // UserType 탭 관련 상태
+  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [selectedUserType, setSelectedUserType] = useState<string>(currentUserType || '');
 
   // Reset state when dialog opens and fetch existing schedules
   useEffect(() => {
@@ -62,6 +94,29 @@ const ApprovalDialog = ({
         { start: null, end: null }
       ]);
       setExistingSchedules([]);
+      setSelectedUserType(currentUserType || '');
+
+      // Fetch user roles
+      const fetchUserRoles = async () => {
+        try {
+          const response = await fetch('/api/userrole');
+          if (response.ok) {
+            const data = await response.json();
+            
+            // Filter roles based on current user's userType
+            const userUserTypes = Array.isArray(sessionUserType) ? sessionUserType : [];
+            const filteredRoles = data.filter((role: UserRole) => 
+              userUserTypes.some(userType => 
+                role.key.toLowerCase() === userType.toLowerCase()
+              )
+            );
+            
+            setUserRoles(filteredRoles);
+          }
+        } catch (error) {
+          console.error('Error fetching user roles:', error);
+        }
+      };
 
       // Fetch existing schedules for the selected date and user
       const fetchExistingSchedules = async () => {
@@ -82,9 +137,10 @@ const ApprovalDialog = ({
         }
       };
 
+      fetchUserRoles();
       fetchExistingSchedules();
     }
-  }, [open, selectedDate, userId, currentScheduleId]);
+  }, [open, selectedDate, userId, currentScheduleId, currentUserType, sessionUserType]);
 
   // Check if a time conflicts with existing schedules
   const isTimeConflicted = (time: Dayjs) => {
@@ -149,10 +205,10 @@ const ApprovalDialog = ({
   const handleApprove = () => {
     if (isSeparated) {
       // Approve with separated session information
-      onApprove(sessions);
+      onApprove(sessions, selectedUserType);
     } else {
       // Regular approval with single session
-      onApprove([{ start: startTime, end: endTime }]);
+      onApprove([{ start: startTime, end: endTime }], selectedUserType);
     }
   };
 
@@ -163,10 +219,47 @@ const ApprovalDialog = ({
     }
   };
 
+  // Show unauthorized message if user cannot approve schedules
+  if (!canApproveSchedule()) {
+    return (
+      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+        <DialogTitle>Work Time Approval</DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="body1">
+              You don't have permission to approve schedules. Only managers, supervisors, team leads, and HR can approve schedules.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Work Time Approval</DialogTitle>
       <DialogContent>
+        {/* UserType Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs 
+            value={selectedUserType} 
+            onChange={(e, newValue) => setSelectedUserType(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            {userRoles.map((role) => (
+              <Tab 
+                key={role._id} 
+                label={role.name} 
+                value={role.key}
+              />
+            ))}
+          </Tabs>
+        </Box>
+
         <Stack spacing={3} mt={1}>
           <Box>
             <Typography variant="subtitle1" gutterBottom>

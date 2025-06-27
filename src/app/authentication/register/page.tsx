@@ -33,7 +33,7 @@ export default function RegisterPage() {
     name: '',
     email: '',
     password: '',
-    userType: '',
+    userType: [] as string[],
     corp: '',
     eid: '',
     category: '',
@@ -81,7 +81,7 @@ export default function RegisterPage() {
 
           // 기본값 설정
           if (rolesData.length > 0) {
-            setForm(prev => ({ ...prev, userType: rolesData[0].key }));
+            setForm(prev => ({ ...prev, userType: [rolesData[0].key] }));
           }
           if (corpsData.length > 0) {
             setForm(prev => ({ ...prev, corp: corpsData[0].name }));
@@ -177,6 +177,10 @@ export default function RegisterPage() {
           select
           value={form.userType}
           onChange={handleChange}
+          SelectProps={{
+            multiple: true,
+            renderValue: (selected) => (selected as string[]).join(', '),
+          }}
         >
           {userRoles.map((role) => (
             <MenuItem key={role._id} value={role.key}>

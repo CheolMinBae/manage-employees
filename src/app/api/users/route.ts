@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       email,
       password, // 기본 패스워드는 평문으로 저장 (최초 로그인 시 해시화됨)
       position,
-      userType,
+      userType: Array.isArray(userType) ? userType : (userType ? [userType] : []),
       corp,
       eid,
       category,
@@ -126,7 +126,15 @@ export async function PUT(req: Request) {
 
     const updatedUser = await SignupUser.findByIdAndUpdate(
       id,
-      { name, email, position, userType, corp, eid, category },
+      { 
+        name, 
+        email, 
+        position, 
+        userType: Array.isArray(userType) ? userType : (userType ? [userType] : []), 
+        corp, 
+        eid, 
+        category 
+      },
       { new: true }
     );
 

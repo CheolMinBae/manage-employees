@@ -20,7 +20,17 @@ interface UserDocument {
   corp?: string;
   eid?: string | number;
   category?: string;
-  userType?: string;
+  userType?: string[];
+}
+
+interface UserInfo {
+  _id: string;
+  name: string;
+  position?: string;
+  corp?: string;
+  eid?: string | number;
+  category?: string;
+  userType?: string[];
 }
 
 interface RawUserDocument {
@@ -65,24 +75,25 @@ export async function GET(req: NextRequest) {
 
     // 이미 올바른 순서(일요일부터 토요일)로 생성되었으므로 추가 정렬 불필요
 
-    const usersRaw = await SignupUser.find({ 
-      position: { $ne: 'admin' },
-      name: { $not: /testman/i } // 'testman'이 포함된 이름 제외 (대소문자 무시)
+    const usersRaw = await SignupUser.find({
+      status: { $ne: 'deleted' }
     })
       .select('_id name position corp eid category userType')
-      .sort({ name: 1 })
-      .lean<RawUserDocument[]>();
+      .lean() as UserDocument[];
 
-    // 타입 안전성을 위해 필요한 필드만 매핑
-    const users: UserDocument[] = usersRaw.map(user => ({
-      _id: user._id,
-      name: user.name,
-      position: user.position,
-      corp: user.corp,
-      eid: user.eid,
-      category: user.category,
-      userType: user.userType
-    }));
+    // 사용자 정보를 매핑합니다
+    const users: { [key: string]: UserInfo } = {};
+    usersRaw.forEach(user => {
+      users[user._id.toString()] = {
+        _id: user._id.toString(),
+        name: user.name,
+        position: user.position,
+        corp: user.corp,
+        eid: user.eid,
+        category: user.category,
+        userType: user.userType || []
+      };
+    });
 
     const schedules = await Schedule.find({
       date: { $in: weekDates }
@@ -179,9 +190,16 @@ export async function GET(req: NextRequest) {
     };
 
     // 데이터 행 추가
-    users.forEach((user, index) => {
+    schedules.forEach((schedule, index) => {
       const row = worksheet.getRow(index + 4);
       
+      // 사용자 정보 가져오기
+      const user = users[schedule.userId.toString()];
+      if (!user) {
+        console.warn(`User not found for schedule: ${schedule._id}`);
+        return;
+      }
+
       // 기본 정보 설정
       const corpCell = row.getCell(1);
       corpCell.value = user.corp || '';
@@ -209,7 +227,7 @@ export async function GET(req: NextRequest) {
       categoryCell.font = { name: 'Arial', size: 10 };
 
       const positionCell = row.getCell(5);
-      positionCell.value = user.userType || user.position || '';
+      positionCell.value = user.userType && user.userType.length > 0 ? user.userType[0] : user.position || '';
       positionCell.alignment = { horizontal: 'center', vertical: 'middle' };
       positionCell.font = { name: 'Arial', size: 10 };
 

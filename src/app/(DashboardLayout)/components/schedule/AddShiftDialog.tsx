@@ -18,13 +18,15 @@ import {
   InputLabel,
   Divider,
   Alert,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import dayjs, { Dayjs } from 'dayjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useSession } from 'next-auth/react';
 
@@ -60,6 +62,13 @@ interface ScheduleTemplate {
   order: number;
 }
 
+interface UserRole {
+  _id: string;
+  key: string;
+  name: string;
+  description?: string;
+}
+
 interface AddShiftDialogProps {
   open: boolean;
   onClose: () => void;
@@ -82,6 +91,22 @@ export default function AddShiftDialog({
   const { data: session } = useSession();
   const isAdmin = session?.user?.position === 'admin';
   const isEmployee = session?.user?.position === 'employee';
+  const currentUserType = useMemo(() => (session?.user as any)?.userType || [], [session?.user]);
+  const currentUserId = (session?.user as any)?.id;
+  
+  // Check if current user can add schedules for the target user
+  const canAddSchedule = () => {
+    if (isAdmin) return true;
+    if (currentUserId === userId) return true;
+    
+    // Check if user has manager role for specific user types
+    if (Array.isArray(currentUserType)) {
+      return currentUserType.some(type => 
+        ['manager', 'supervisor', 'team-lead'].includes(type.toLowerCase())
+      );
+    }
+    return false;
+  };
   
   const [slotForms, setSlotForms] = useState<SlotForm[]>([]);
   const [allExistingSchedules, setAllExistingSchedules] = useState<ExistingSchedule[]>([]);
@@ -92,6 +117,10 @@ export default function AddShiftDialog({
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
   const [templateStart, setTemplateStart] = useState<Dayjs | null>(null);
   const [templateEnd, setTemplateEnd] = useState<Dayjs | null>(null);
+
+  // UserType 탭 관련 상태
+  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [selectedUserType, setSelectedUserType] = useState<string>('');
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -143,10 +172,10 @@ export default function AddShiftDialog({
     }
   }, [open]);
 
-  // Fetch templates (admin only)
+  // Fetch templates (based on user permissions)
   useEffect(() => {
     const fetchTemplates = async () => {
-      if (!(isAdmin || isEmployee)) return;
+      if (!canAddSchedule()) return;
 
       try {
         const response = await fetch('/api/schedule-templates');
@@ -160,10 +189,45 @@ export default function AddShiftDialog({
       }
     };
 
-    if (open && (isAdmin || isEmployee)) {
+    if (open && canAddSchedule()) {
       fetchTemplates();
     }
-  }, [open, isAdmin, isEmployee]);
+  }, [open]);
+
+  // Fetch user roles
+  useEffect(() => {
+    const fetchUserRoles = async () => {
+      try {
+        const response = await fetch('/api/userrole');
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Filter roles based on current user's userType
+          const userUserTypes = Array.isArray(currentUserType) ? currentUserType : [];
+                      console.log('Full session:', session);
+            console.log('session.user:', session?.user);
+            console.log('currentUserType:', currentUserType);
+            console.log('userUserTypes:', userUserTypes);
+          const filteredRoles = data.filter((role: UserRole) => 
+            userUserTypes.some(userType => 
+              role.key.toLowerCase() === userType.toLowerCase()
+            )
+          );
+          
+          setUserRoles(filteredRoles);
+          if (filteredRoles.length > 0 && !selectedUserType) {
+            setSelectedUserType(filteredRoles[0].key);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user roles:', error);
+      }
+    };
+
+    if (open) {
+      fetchUserRoles();
+    }
+  }, [open, currentUserType]);
 
   // 템플릿 선택 시 시간 세팅
   useEffect(() => {
@@ -275,6 +339,7 @@ export default function AddShiftDialog({
       // 2. 템플릿으로 새 스케줄 생성
       const newSchedule = {
         userId,
+        userType: selectedUserType,
         date: selectedDate.format('YYYY-MM-DD'),
         start: templateStart ? templateStart.format('HH:mm') : template?.startTime,
         end: templateEnd ? templateEnd.format('HH:mm') : template?.endTime,
@@ -310,6 +375,7 @@ export default function AddShiftDialog({
       start: slot.start?.format('HH:mm') ?? '',
       end: slot.end?.format('HH:mm') ?? '',
       userId,
+      userType: selectedUserType,
     }));
 
     await Promise.all(
@@ -330,10 +396,46 @@ export default function AddShiftDialog({
     return allExistingSchedules.filter(schedule => schedule.date === date);
   };
 
+  // Show unauthorized message if user cannot add schedules
+  if (!canAddSchedule()) {
+    return (
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+        <DialogTitle>Add Shift</DialogTitle>
+        <DialogContent dividers>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="body1">
+              You don't have permission to add schedules for this user.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>Add Shift</DialogTitle>
       <DialogContent dividers>
+        {/* UserType Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs 
+            value={selectedUserType} 
+            onChange={(e, newValue) => setSelectedUserType(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            {userRoles.map((role) => (
+              <Tab 
+                key={role._id} 
+                label={role.name} 
+                value={role.key}
+              />
+            ))}
+          </Tabs>
+        </Box>
         {/* Admin Template Selection */}
         
         <Box sx={{ mb: 3 }}>

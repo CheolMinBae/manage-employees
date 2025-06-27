@@ -18,14 +18,36 @@ export async function GET(req: NextRequest) {
       date: date,
     }).lean();
 
-    // 모든 직원 정보 가져오기 (position이 employee인 사용자만)
+    // 모든 사용자 정보 가져오기
     const allUsers = await SignupUser.find({
-      ...(searchParams.get('includeAdmin') !== 'true' ? { position: 'employee' } : {})
+      status: { $ne: 'deleted' }
     })
       .select('_id name position corp eid category userType')
       .lean();
 
-    const userMap = new Map(allUsers.map((u: any) => [u._id.toString(), u]));
+    interface User {
+      _id: string;
+      name: string;
+      position: string;
+      corp: string;
+      eid: string | number;
+      category: string;
+      userType: string[];
+    }
+
+    // User 타입 정의 및 매핑
+    const userMapping: { [key: string]: User } = {};
+    allUsers.forEach(user => {
+      userMapping[user._id.toString()] = {
+        _id: user._id.toString(),
+        name: user.name,
+        position: user.position,
+        corp: user.corp,
+        eid: user.eid,
+        category: user.category,
+        userType: user.userType || []
+      };
+    });
 
     // 시간대별 근무자 계산 (캘리포니아 시간 기준 3am~11pm)
     const hourlyData = Array.from({ length: 21 }, (_, i) => {
@@ -52,13 +74,13 @@ export async function GET(req: NextRequest) {
         // 현재 시간이 근무 시간에 포함되는지 확인 (캘리포니아 현지 시간)
         // 시간 경계에서는 시작 시간은 포함, 종료 시간은 제외
         if (currentHourMinutes >= startTotalMinutes && currentHourMinutes < endTotalMinutes) {
-          const user = userMap.get(schedule.userId);
+          const user = userMapping[schedule.userId];
           if (user) {
             workingEmployees.push({
               name: user.name,
               position: user.position || 'Employee',
               shift: `${schedule.start}-${schedule.end}`,
-              userType: user.userType
+              userType: user.userType.join(', ')
             });
           }
         }
@@ -72,55 +94,48 @@ export async function GET(req: NextRequest) {
     });
 
     // 개별 직원의 시간대별 근무 상태 계산 (캘리포니아 시간 기준 3am~11pm)
-    const employeeSchedules = allUsers.map((user: any) => {
-      const userSchedules = schedules.filter(s => s.userId === user._id.toString());
-      const hourlyStatus = Array.from({ length: 21 }, (_, i) => {
-        const hour = i + 3; // 3~23
-        const currentHourStart = hour * 60; // 현재 시간의 시작 (분 단위, 캘리포니아 현지 시간)
-        const currentHourEnd = (hour + 1) * 60; // 현재 시간의 끝 (분 단위)
-        
-        let totalWorkingMinutes = 0;
-        let shifts: string[] = [];
-        let approved: boolean | undefined = undefined;
-        
-        for (const schedule of userSchedules) {
-          const startHour = parseInt(schedule.start.split(':')[0]);
-          const startMinute = parseInt(schedule.start.split(':')[1]);
-          const endHour = parseInt(schedule.end.split(':')[0]);
-          const endMinute = parseInt(schedule.end.split(':')[1]);
+    const employeeSchedules = allUsers.map(user => {
+      const userId = user._id.toString();
+      const userSchedules = schedules.filter(s => s.userId === userId);
+      
+      // 시간별 상태 계산
+      const hourlyStatus = Array.from({ length: 24 }, (_, hour) => {
+        const scheduleForHour = userSchedules.find(schedule => {
+          const scheduleHour = new Date(schedule.start).getHours();
+          const scheduleEndHour = new Date(schedule.end).getHours();
+          return hour >= scheduleHour && hour < scheduleEndHour;
+        });
 
-          const startTotalMinutes = startHour * 60 + startMinute;
-          const endTotalMinutes = endHour * 60 + endMinute;
+        if (scheduleForHour) {
+          const startHour = new Date(scheduleForHour.start).getHours();
+          const endHour = new Date(scheduleForHour.end).getHours();
+          const totalHours = endHour - startHour;
+          const workingRatio = totalHours > 0 ? 1 / totalHours : 0;
 
-          // 현재 시간대와 근무 시간의 겹치는 부분 계산 (캘리포니아 현지 시간)
-          const overlapStart = Math.max(currentHourStart, startTotalMinutes);
-          const overlapEnd = Math.min(currentHourEnd, endTotalMinutes);
-          
-          if (overlapStart < overlapEnd) {
-            totalWorkingMinutes += (overlapEnd - overlapStart);
-            shifts.push(`${schedule.start}-${schedule.end}`);
-            approved = schedule.approved;
-          }
+          return {
+            isWorking: true,
+            workingRatio,
+            shift: `${startHour.toString().padStart(2, '0')}:00-${endHour.toString().padStart(2, '0')}:00`,
+            approved: scheduleForHour.approved || false
+          };
         }
-        
-        const workingRatio = totalWorkingMinutes / 60; // 60분 기준으로 비율 계산
-        
+
         return {
-          isWorking: workingRatio > 0,
-          workingRatio: workingRatio,
-          shift: shifts.length > 0 ? shifts.join(', ') : null,
-          approved: approved
+          isWorking: false,
+          workingRatio: 0,
+          shift: null,
+          approved: false
         };
       });
 
       return {
-        userId: user._id.toString(),
+        userId: userId,
         name: user.name,
-        position: user.position || 'Employee',
+        position: user.position,
         corp: user.corp,
         eid: user.eid,
         category: user.category,
-        userType: user.userType,
+        userType: user.userType || [],
         hourlyStatus,
         hasSchedule: userSchedules.length > 0
       };

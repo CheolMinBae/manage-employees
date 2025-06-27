@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       email,
       password,
       position,   // 'admin' | 'employee'
-      userType,   // 'barista' | 'supervisor' | 'position1' | 'position2'
+      userType,   // 'barista' | 'supervisor' | 'position1' | 'position2' 또는 배열
       corp,       // 'corp1' | 'corp2' | 'corp3'
       eid,
       category,
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     // 비밀번호 암호화 (Google OAuth 사용자는 특별 처리)
     let processedPassword;
     if (password === 'google-oauth') {
-      // Google OAuth 사용자는 랜덤 패스워드 생성 (사용되지 않음)
+      // Google OAuth 사용자는 랜던 패스워드 생성 (사용되지 않음)
       processedPassword = await bcrypt.hash(Math.random().toString(36), 10);
     } else {
       processedPassword = await bcrypt.hash(password, 10);
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       email,
       password: processedPassword,
       position,    // 저장: employee or admin
-      userType,    // 저장: barista, supervisor, ...
+      userType: Array.isArray(userType) ? userType : [userType],    // 저장: barista, supervisor, ... (배열로 변환)
       corp,        // 저장: corp1, ...
       eid,
       category,

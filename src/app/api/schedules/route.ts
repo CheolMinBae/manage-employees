@@ -83,7 +83,16 @@ export async function GET(req: NextRequest) {
       .select('_id name corp eid category position userType')
       .lean();
 
-    const userMap = new Map(users.map((u: any) => [u._id.toString(), u]));
+    const userMap = new Map();
+    users.forEach(user => {
+      userMap.set(user._id.toString(), {
+        name: user.name,
+        corp: user.corp,
+        eid: user.eid,
+        category: user.category,
+        position: user.userType && user.userType.length > 0 ? user.userType[0] : 'Barista',
+      });
+    });
 
     const withUserData = schedules.map((s: any) => {
       const user = userMap.get(s.userId.toString());
@@ -94,7 +103,7 @@ export async function GET(req: NextRequest) {
         corp: user?.corp || 'Unknown',
         eid: user?.eid || 'Unknown',
         category: user?.category || 'Unknown',
-        position: user?.userType || 'Barista',
+        position: user?.position || 'Barista',
       };
     });
 

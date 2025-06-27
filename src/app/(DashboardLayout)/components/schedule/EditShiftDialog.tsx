@@ -3,13 +3,14 @@
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Stack, Typography, Box, Chip, IconButton, Alert,
-  Switch, FormControlLabel, Select, MenuItem, FormControl, InputLabel, Divider
+  Switch, FormControlLabel, Select, MenuItem, FormControl, InputLabel, Divider,
+  Tabs, Tab
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { TimePicker } from '@mui/x-date-pickers';
 import { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 
 interface TimeSlot {
@@ -19,6 +20,7 @@ interface TimeSlot {
   end: string;
   approved?: boolean;
   userId: string;
+  userType: string;
 }
 
 interface ExistingSchedule {
@@ -35,6 +37,13 @@ interface ScheduleTemplate {
   endTime: string;
   isActive: boolean;
   order: number;
+}
+
+interface UserRole {
+  _id: string;
+  key: string;
+  name: string;
+  description?: string;
 }
 
 interface WorkSession {
@@ -58,6 +67,22 @@ export default function EditShiftDialog({
   const { data: session } = useSession();
   const isAdmin = session?.user?.position === 'admin';
   const isEmployee = session?.user?.position === 'employee';
+  const currentUserType = useMemo(() => (session?.user as any)?.userType || [], [session?.user]);
+  const currentUserId = (session?.user as any)?.id;
+  
+  // Check if current user can edit schedules for the target user
+  const canEditSchedule = () => {
+    if (isAdmin) return true;
+    if (currentUserId === slot?.userId) return true;
+    
+    // Check if user has manager role for specific user types
+    if (Array.isArray(currentUserType)) {
+      return currentUserType.some(type => 
+        ['manager', 'supervisor', 'team-lead'].includes(type.toLowerCase())
+      );
+    }
+    return false;
+  };
   
   const [editStart, setEditStart] = useState<Dayjs | null>(null);
   const [editEnd, setEditEnd] = useState<Dayjs | null>(null);
@@ -71,12 +96,45 @@ export default function EditShiftDialog({
     { start: null, end: null }
   ]);
 
+  // UserType 탭 관련 상태
+  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [selectedUserType, setSelectedUserType] = useState<string>('');
+
   useEffect(() => {
     if (slot) {
       setEditStart(dayjs(`${slot.date}T${slot.start}`));
       setEditEnd(dayjs(`${slot.date}T${slot.end}`));
+      setSelectedUserType(slot.userType);
     }
   }, [slot]);
+
+  // Fetch user roles
+  useEffect(() => {
+    const fetchUserRoles = async () => {
+      try {
+        const response = await fetch('/api/userrole');
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Filter roles based on current user's userType
+          const userUserTypes = Array.isArray(currentUserType) ? currentUserType : [];
+          const filteredRoles = data.filter((role: UserRole) => 
+            userUserTypes.some(userType => 
+              role.key.toLowerCase() === userType.toLowerCase()
+            )
+          );
+          
+          setUserRoles(filteredRoles);
+        }
+      } catch (error) {
+        console.error('Error fetching user roles:', error);
+      }
+    };
+
+    if (open) {
+      fetchUserRoles();
+    }
+  }, [open, currentUserType]);
 
   // Fetch existing schedules for the selected date and user
   useEffect(() => {
@@ -191,6 +249,7 @@ export default function EditShiftDialog({
         // Create two new schedules
         const firstSchedule = {
           userId: slot.userId,
+          userType: selectedUserType,
           date: slot.date,
           start: firstSession.start?.format('HH:mm'),
           end: firstSession.end?.format('HH:mm'),
@@ -199,6 +258,7 @@ export default function EditShiftDialog({
 
         const secondSchedule = {
           userId: slot.userId,
+          userType: selectedUserType,
           date: slot.date,
           start: secondSession.start?.format('HH:mm'),
           end: secondSession.end?.format('HH:mm'),
@@ -226,6 +286,7 @@ export default function EditShiftDialog({
             id: slot._id,
             start: editStart.format('HH:mm'),
             end: editEnd.format('HH:mm'),
+            userType: selectedUserType,
             approved: slot.approved || false,
           }),
         });
@@ -317,10 +378,47 @@ export default function EditShiftDialog({
     }
   };
 
+  // Show unauthorized message if user cannot edit schedules
+  if (!canEditSchedule()) {
+    return (
+      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Shift</DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="body1">
+              You don't have permission to edit this schedule.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Edit Shift</DialogTitle>
       <DialogContent>
+        {/* UserType Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs 
+            value={selectedUserType} 
+            onChange={(e, newValue) => setSelectedUserType(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            {userRoles.map((role) => (
+              <Tab 
+                key={role._id} 
+                label={role.name} 
+                value={role.key}
+              />
+            ))}
+          </Tabs>
+        </Box>
+
         <Stack spacing={2} mt={1}>
           <Alert severity="info" sx={{ mb: 2 }}>
             Editing schedule for {slot?.date}

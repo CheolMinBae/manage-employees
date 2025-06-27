@@ -10,7 +10,7 @@ export interface ISignupUser {
   corp?: string;
   eid?: string;
   category?: string;
-  userType?: string;
+  userType?: string[];
   isFirstLogin?: boolean;
 }
 
@@ -22,7 +22,7 @@ const signupUserSchema = new mongoose.Schema({
   status: { type: String, default: 'pending' },
   corp: { type: String },
   eid: { type: String },
-  userType: { type: String },
+  userType: { type: [String] },
   category: { type: String },
   isFirstLogin: { type: Boolean, default: true },
 }, { timestamps: true });
