@@ -347,6 +347,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   // 1. Add/Edit Shift Dialog 상태 추가
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editDialogInfo, setEditDialogInfo] = useState<{ employee: EmployeeSchedule; hour: number } | null>(null);
+  const [editScheduleData, setEditScheduleData] = useState<any>(null);
 
   const fetchHourlyData = async (isRefresh = false) => {
     if (isRefresh) {
@@ -361,6 +362,8 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         cache: 'no-store', // 캐시 무시하여 최신 데이터 가져오기
       });
       const result = await response.json();
+      console.log('API Response:', result);
+      console.log('Employee schedules sample:', result.employeeSchedules?.slice(0, 2));
       setData(result);
     } catch (error) {
       console.error('Error fetching hourly data:', error);
@@ -374,14 +377,14 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   };
 
   // 필터링된 직원 데이터
-  const filteredEmployees = data?.employeeSchedules.filter(employee => {
+  const filteredEmployees = (data?.employeeSchedules || []).filter(employee => {
     const nameMatch = employee.name.toLowerCase().includes(nameFilter.toLowerCase());
     const userTypeMatch = userTypeFilter.length === 0 || userTypeFilter.includes(employee.userType);
     const companyMatch = !companyFilter || employee.corp === companyFilter;
     const categoryMatch = categoryFilter.length === 0 || categoryFilter.includes(employee.category);
     
     return nameMatch && userTypeMatch && companyMatch && categoryMatch;
-  }) || [];
+  });
 
   // 정렬된 직원 데이터
   const sortedEmployees = [...filteredEmployees].sort((a, b) => {
@@ -399,13 +402,16 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   });
 
   // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산 (pending/approved 분리)
-  const filteredHourlyData = data?.hourlyData.map(hourData => {
+  const filteredHourlyData = (data?.hourlyData || []).map(hourData => {
     let pendingCount = 0;
     let approvedCount = 0;
+    const workingEmployees: EmployeeSchedule[] = [];
+    
     sortedEmployees.forEach(emp => {
-      // 인덱스 보정: hourData.hour(3~23) → hourlyStatus[hourData.hour - 3]
-      const status = emp.hourlyStatus?.[hourData.hour - 3];
-      if (status?.workingRatio) {
+      // hourlyStatus 배열은 0~23시간을 담고 있으므로 직접 hourData.hour를 인덱스로 사용
+      const status = emp.hourlyStatus?.[hourData.hour];
+      if (status?.isWorking && status?.workingRatio) {
+        workingEmployees.push(emp);
         if (status.approved === true) {
           approvedCount += status.workingRatio;
         } else {
@@ -413,18 +419,19 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         }
       }
     });
+    
     return {
       ...hourData,
       pendingCount,
       approvedCount,
-      employees: sortedEmployees
+      employees: workingEmployees // 실제 근무하는 직원들만 포함
     };
-  }) || [];
+  });
 
   // 고유한 userType, company, category 목록 생성
-  const uniqueUserTypes = Array.from(new Set(data?.employeeSchedules.map(emp => emp.userType) || []));
-  const uniqueCompanies = Array.from(new Set(data?.employeeSchedules.map(emp => emp.corp) || []));
-  const uniqueCategories = Array.from(new Set(data?.employeeSchedules.map(emp => emp.category) || []));
+  const uniqueUserTypes = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.userType)));
+  const uniqueCompanies = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.corp)));
+  const uniqueCategories = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.category)));
 
   const handleClearFilters = () => {
     setNameFilter('');
@@ -520,9 +527,36 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   };
 
   const formatDateHeader = (dateStr: string) => {
+    // 빈 문자열이나 잘못된 형식 체크
+    if (!dateStr || typeof dateStr !== 'string') {
+      return 'Invalid Date';
+    }
+
     // 서버에서 전달하는 date 문자열(YYYY-MM-DD)을 직접 파싱하여 시간대 변환 방지
-    const [year, month, day] = dateStr.split('-').map(Number);
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) {
+      return 'Invalid Date';
+    }
+
+    const [year, month, day] = parts.map(Number);
+    
+    // 숫자 변환 실패 체크
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return 'Invalid Date';
+    }
+
+    // 날짜 범위 체크
+    if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
+      return 'Invalid Date';
+    }
+
     const date = new Date(year, month - 1, day); // 로컬 시간으로 직접 생성
+    
+    // 유효한 날짜인지 확인
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+
     return format(date, 'MMM d (EEE)'); // 요일 3글자 추가
   };
 
@@ -614,10 +648,11 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     return '#4caf50';
   };
 
-  // 직원별 전체 시간 합계 계산 함수 (반올림 없이 단순 합산)
+  // 직원별 전체 시간 합계 계산 함수 (실제 근무 시간만 합산)
   const getEmployeeTotalHours = (employee: EmployeeSchedule): number => {
-    console.log(employee.hourlyStatus);
-    return (employee.hourlyStatus || []).reduce((sum: number, status: any) => sum + (status?.workingRatio || 0), 0);
+    return (employee.hourlyStatus || []).reduce((sum: number, status: any) => {
+      return sum + (status?.isWorking ? (status?.workingRatio || 0) : 0);
+    }, 0);
   };
 
   // 시간 표시 함수 (서버에서 전달하는 hour 값은 이미 캘리포니아 시간 기준)
@@ -790,7 +825,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
             Clear
           </Button>
           <Typography variant="caption" color="text.secondary">
-            Showing {filteredEmployees.length} of {data?.employeeSchedules.length || 0} employees
+            Showing {filteredEmployees.length} of {(data?.employeeSchedules || []).length} employees
             {sortConfig.hour && (
               <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#1976d2' }}>
                 • Sorted by {formatHourCalifornia(sortConfig.hour)} ({sortConfig.direction === 'desc' ? 'Most working first' : 'Least working first'})
@@ -831,7 +866,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   >
                     <CalendarTodayIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
                     <Typography variant="h6">
-                      {formatDateHeader(data.date)}
+                      {formatDateHeader(data?.date || '')}
                     </Typography>
                   </Box>
                   <IconButton 
@@ -866,7 +901,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   </ClickAwayListener>
                 </Popper>
               </TableCell>
-              {data.hourlyData.map((hourData) => (
+              {(data?.hourlyData || []).map((hourData) => (
                 <>
                   {(hourData.hour >= 3 && hourData.hour <= 23) && (
                     <TableCell 
@@ -937,14 +972,14 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                               variant="body2"
                               sx={{ color: '#ff9800', fontWeight: 'bold', lineHeight: 1 }}
                             >
-                              {hourData.pendingCount}
+                              {hourData.pendingCount.toFixed(2)}
                             </Typography>
                             <Divider sx={{ my: 0.2 }} />
                             <Typography
                               variant="body2"
                               sx={{ color: '#4caf50', fontWeight: 'bold', lineHeight: 1 }}
                             >
-                              {hourData.approvedCount}
+                              {hourData.approvedCount.toFixed(2)}
                             </Typography>
                           </>
                         </Box>
@@ -958,7 +993,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   {/* 전체 직원 합계의 합계 */}
                   {sortedEmployees
                     .reduce((sum, emp) => sum + getEmployeeTotalHours(emp), 0)
-                    }
+                    .toFixed(2)}
                 </Typography>
               </TableCell>
             </TableRow>
@@ -969,7 +1004,9 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 1 }}>
                   <Box>
                     <Typography variant="body2" fontWeight="bold">
-                      {employee.name} ({employee.userType.toLowerCase()})
+                      {employee.name} ({Array.isArray(employee.userType) 
+                        ? employee.userType.join(', ') 
+                        : String(employee.userType || '')})
                     </Typography>
                     <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
                       <Chip label={employee.corp} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
@@ -978,12 +1015,13 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                     </Stack>
                   </Box>
                 </TableCell>
-                {employee.hourlyStatus.map((status, i) => {
-                  const hour = i + 3;
+                {(data?.hourlyData || []).map((hourData) => {
+                  const hour = hourData.hour;
                   if (hour < 3 || hour > 23) return null;
+                  const status = employee.hourlyStatus?.[hour];
                   return (
                     <TableCell key={hour} align="center" sx={{ px: 0.5, py: 1 }}>
-                      {status.isWorking ? (
+                      {status?.isWorking ? (
                         <Tooltip title={`Working: ${status.shift}`} placement="top">
                           <Typography
                             variant="caption"
@@ -1001,12 +1039,41 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                                   : 'rgba(255, 152, 0, 0.1)'
                               },
                             }}
-                            onClick={() => {
+                            onClick={async () => {
                               setEditDialogInfo({ employee, hour });
+                              
+                              // 실제 스케줄 데이터 가져오기
+                              try {
+                                const dateStr = format(selectedDate, 'yyyy-MM-dd');
+                                const response = await fetch(`/api/schedules?userId=${employee.userId}&date=${dateStr}`);
+                                if (response.ok) {
+                                  const schedules = await response.json();
+                                  
+                                  // 해당 시간대에 해당하는 스케줄 찾기
+                                  const relevantSchedule = schedules.find((schedule: any) => {
+                                    const startHour = parseInt(schedule.start.split(':')[0]);
+                                    const startMinute = parseInt(schedule.start.split(':')[1]);
+                                    const endHour = parseInt(schedule.end.split(':')[0]);
+                                    const endMinute = parseInt(schedule.end.split(':')[1]);
+                                    
+                                    const startTotalMinutes = startHour * 60 + startMinute;
+                                    const endTotalMinutes = endHour * 60 + endMinute;
+                                    const currentHourStart = hour * 60;
+                                    const currentHourEnd = (hour + 1) * 60;
+                                    
+                                    return startTotalMinutes < currentHourEnd && endTotalMinutes > currentHourStart;
+                                  });
+                                  
+                                  setEditScheduleData(relevantSchedule);
+                                }
+                              } catch (error) {
+                                console.error('Error fetching schedule data:', error);
+                              }
+                              
                               setEditDialogOpen(true);
                             }}
                           >
-                            {status.workingRatio === 1 ? '1' : status.workingRatio}
+                            {status.workingRatio === 1 ? '1.00' : status.workingRatio.toFixed(2)}
                           </Typography>
                         </Tooltip>
                       ) : (
@@ -1025,7 +1092,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 })}
                 <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                   <Typography variant="body2" fontWeight="bold">
-                    {getEmployeeTotalHours(employee)}
+                    {getEmployeeTotalHours(employee).toFixed(2)}
                   </Typography>
                 </TableCell>
               </TableRow>
@@ -1081,16 +1148,21 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       )}
 
       {/* Edit Shift Dialog */}
-      {editDialogOpen && editDialogInfo && (
+      {editDialogOpen && editDialogInfo && editScheduleData && (
         <EditShiftDialog
           open={editDialogOpen}
-          onClose={() => setEditDialogOpen(false)}
+          onClose={() => {
+            setEditDialogOpen(false);
+            setEditScheduleData(null);
+          }}
           slot={{
-            _id: '', // 임시 ID
-            ...editDialogInfo.employee,
-            start: editDialogInfo.employee.hourlyStatus[editDialogInfo.hour]?.shift || '',
-            end: '', // 필요시 end 시간도 전달
-            date: data.date,
+            _id: editScheduleData._id,
+            userId: editDialogInfo.employee.userId,
+            userType: editDialogInfo.employee.userType,
+            start: editScheduleData.start,
+            end: editScheduleData.end,
+            date: data?.date || '',
+            approved: editScheduleData.approved || false,
           }}
           fetchSchedules={fetchHourlyData}
         />

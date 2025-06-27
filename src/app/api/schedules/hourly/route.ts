@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
         corp: user.corp,
         eid: user.eid,
         category: user.category,
-        userType: user.userType || []
+        userType: Array.isArray(user.userType) ? user.userType : (user.userType ? [user.userType] : [])
       };
     });
 
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
               name: user.name,
               position: user.position || 'Employee',
               shift: `${schedule.start}-${schedule.end}`,
-              userType: user.userType.join(', ')
+              userType: Array.isArray(user.userType) ? user.userType.join(', ') : (user.userType || 'Employee')
             });
           }
         }
@@ -101,22 +101,45 @@ export async function GET(req: NextRequest) {
       
       // 시간별 상태 계산
       const hourlyStatus = Array.from({ length: 24 }, (_, hour) => {
+        // 해당 시간대(hour:00 ~ hour+1:00)에 겹치는 스케줄 찾기
         const scheduleForHour = userSchedules.find(schedule => {
-          const scheduleHour = new Date(schedule.start).getHours();
-          const scheduleEndHour = new Date(schedule.end).getHours();
-          return hour >= scheduleHour && hour < scheduleEndHour;
+          const startHour = parseInt(schedule.start.split(':')[0]);
+          const startMinute = parseInt(schedule.start.split(':')[1]);
+          const endHour = parseInt(schedule.end.split(':')[0]);
+          const endMinute = parseInt(schedule.end.split(':')[1]);
+          
+          const startTotalMinutes = startHour * 60 + startMinute;
+          const endTotalMinutes = endHour * 60 + endMinute;
+          const currentHourStart = hour * 60;
+          const currentHourEnd = (hour + 1) * 60;
+          
+          // 스케줄과 현재 시간대가 겹치는지 확인
+          return startTotalMinutes < currentHourEnd && endTotalMinutes > currentHourStart;
         });
 
         if (scheduleForHour) {
-          const startHour = new Date(scheduleForHour.start).getHours();
-          const endHour = new Date(scheduleForHour.end).getHours();
-          const totalHours = endHour - startHour;
-          const workingRatio = totalHours > 0 ? 1 / totalHours : 0;
+          const startHour = parseInt(scheduleForHour.start.split(':')[0]);
+          const startMinute = parseInt(scheduleForHour.start.split(':')[1]);
+          const endHour = parseInt(scheduleForHour.end.split(':')[0]);
+          const endMinute = parseInt(scheduleForHour.end.split(':')[1]);
+          
+          const startTotalMinutes = startHour * 60 + startMinute;
+          const endTotalMinutes = endHour * 60 + endMinute;
+          const currentHourStart = hour * 60;
+          const currentHourEnd = (hour + 1) * 60;
+          
+          // 현재 시간대에서 실제 근무하는 분 계산
+          const workingStartMinutes = Math.max(startTotalMinutes, currentHourStart);
+          const workingEndMinutes = Math.min(endTotalMinutes, currentHourEnd);
+          const workingMinutes = workingEndMinutes - workingStartMinutes;
+          
+          // 근무 비율 계산 (0~1)
+          const workingRatio = workingMinutes / 60;
 
           return {
-            isWorking: true,
-            workingRatio,
-            shift: `${startHour.toString().padStart(2, '0')}:00-${endHour.toString().padStart(2, '0')}:00`,
+            isWorking: workingRatio > 0,
+            workingRatio: Math.round(workingRatio * 100) / 100, // 소수점 둘째 자리까지 반올림
+            shift: `${scheduleForHour.start}-${scheduleForHour.end}`,
             approved: scheduleForHour.approved || false
           };
         }
@@ -136,7 +159,7 @@ export async function GET(req: NextRequest) {
         corp: user.corp,
         eid: user.eid,
         category: user.category,
-        userType: user.userType || [],
+        userType: Array.isArray(user.userType) ? user.userType.join(', ') : (user.userType || 'Employee'),
         hourlyStatus,
         hasSchedule: userSchedules.length > 0
       };

@@ -68,6 +68,16 @@ export default function EditShiftDialog({
   const isAdmin = session?.user?.position === 'admin';
   const isEmployee = session?.user?.position === 'employee';
   const currentUserType = useMemo(() => (session?.user as any)?.userType || [], [session?.user]);
+  const targetUserType = useMemo(() => {
+    if (slot?.userType) {
+      // slot.userType이 문자열인 경우 배열로 변환
+      if (typeof slot.userType === 'string') {
+        return slot.userType.split(', ').map(type => type.trim());
+      }
+      return Array.isArray(slot.userType) ? slot.userType : [slot.userType];
+    }
+    return [];
+  }, [slot?.userType]);
   const currentUserId = (session?.user as any)?.id;
   
   // Check if current user can edit schedules for the target user
@@ -118,8 +128,8 @@ export default function EditShiftDialog({
         if (response.ok) {
           const data = await response.json();
           
-          // Filter roles based on current user's userType
-          const userUserTypes = Array.isArray(currentUserType) ? currentUserType : [];
+          // Filter roles based on target user's userType (the user being edited)
+          const userUserTypes = Array.isArray(targetUserType) ? targetUserType : [];
           const filteredRoles = data.filter((role: UserRole) => 
             userUserTypes.some(userType => 
               role.key.toLowerCase() === userType.toLowerCase()
@@ -136,7 +146,7 @@ export default function EditShiftDialog({
     if (open) {
       fetchUserRoles();
     }
-  }, [open, currentUserType]);
+  }, [open, targetUserType]);
 
   // Fetch schedules for all UserTypes
   useEffect(() => {
