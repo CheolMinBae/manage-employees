@@ -25,6 +25,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error('No user found');
         }
 
+        console.log('Raw user from DB:', user);
+        console.log('user.userType:', user.userType);
+        console.log('typeof user.userType:', typeof user.userType);
+        console.log('Array.isArray(user.userType):', Array.isArray(user.userType));
+
         const isValid = await compare(credentials.password, user.password);
 
         if (!isValid) {
@@ -32,7 +37,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         console.log('User from DB:', {
-          id: user._id.toString(),
+          id: (user._id as any).toString(),
           email: user.email,
           name: user.name,
           position: user.position,
@@ -41,12 +46,22 @@ export const authOptions: NextAuthOptions = {
           eid: user.eid,
         });
 
+        // 임시 테스트용: userType이 없으면 position에 따라 기본값 설정
+        let defaultUserType: string[] = [];
+        if (!user.userType || user.userType.length === 0) {
+          if (user.position === 'admin') {
+            defaultUserType = ['admin', 'manager'];
+          } else {
+            defaultUserType = ['employee'];
+          }
+        }
+        console.log('Default userType:', user.userType);
         return {
-          id: user._id.toString(),
+          id: (user._id as any).toString(),
           email: user.email,
           name: user.name,
           position: user.position,
-          userType: user.userType,
+          userType: user.userType && user.userType.length > 0 ? user.userType : defaultUserType,
           corp: user.corp,
           eid: user.eid,
         };
@@ -55,10 +70,10 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 60, // 1분으로 설정하여 강제 갱신
   },
   jwt: {
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 60, // 1분으로 설정하여 강제 갱신
   },
   pages: {
     signIn: '/auth/signin',
@@ -71,6 +86,7 @@ export const authOptions: NextAuthOptions = {
         token.userType = user.userType;
         token.corp = user.corp;
         token.eid = user.eid;
+        token.timestamp = Date.now();
         console.log('JWT callback - token after update:', token);
       }
       return token;

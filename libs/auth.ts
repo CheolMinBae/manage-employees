@@ -14,6 +14,7 @@ declare module 'next-auth' {
       email?: string | null;
       image?: string | null;
       position?: string;
+      userType?: string[];
       status?: string;
     }
   }
@@ -78,8 +79,9 @@ export const authOptions: NextAuthOptions = {
       
       const user = await SignupUser.findOne({ email: session.user.email });
       if (user) {
-        session.user.id = user._id.toString();
+        session.user.id = (user._id as any).toString();
         session.user.position = user.position;
+        session.user.userType = user.userType;
         session.user.status = user.status;
       }
       return session;

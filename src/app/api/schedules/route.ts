@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
 
     const userMap = new Map();
     users.forEach(user => {
-      userMap.set(user._id.toString(), {
+      userMap.set((user._id as any).toString(), {
         name: user.name,
         corp: user.corp,
         eid: user.eid,

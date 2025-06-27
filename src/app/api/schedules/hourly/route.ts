@@ -38,8 +38,9 @@ export async function GET(req: NextRequest) {
     // User 타입 정의 및 매핑
     const userMapping: { [key: string]: User } = {};
     allUsers.forEach(user => {
-      userMapping[user._id.toString()] = {
-        _id: user._id.toString(),
+      const userId = (user._id as any).toString();
+      userMapping[userId] = {
+        _id: userId,
         name: user.name,
         position: user.position,
         corp: user.corp,
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
 
     // 개별 직원의 시간대별 근무 상태 계산 (캘리포니아 시간 기준 3am~11pm)
     const employeeSchedules = allUsers.map(user => {
-      const userId = user._id.toString();
+      const userId = (user._id as any).toString();
       const userSchedules = schedules.filter(s => s.userId === userId);
       
       // 시간별 상태 계산

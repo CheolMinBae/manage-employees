@@ -29,6 +29,7 @@ interface TimeSlot {
   approved?: boolean;
   date: string;
   userId: string;
+  userType: string;
 }
 
 interface WeekRange {
@@ -149,6 +150,7 @@ export default function ScheduleRegisterPage() {
         const newDate = addDays(targetWeekStart, diff);
         return {
           userId,
+          userType: s.userType || 'Barista', // 기존 userType 또는 기본값
           date: format(newDate, 'yyyy-MM-dd'),
           start: s.start,
           end: s.end,

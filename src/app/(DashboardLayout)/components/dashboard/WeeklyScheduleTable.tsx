@@ -91,6 +91,7 @@ export default function WeeklyScheduleTable({
     start: string;
     end: string;
     approved?: boolean;
+    userType: string;
   } | null>(null);
   const [selectedDateInfo, setSelectedDateInfo] = useState<{
     userId: string;
@@ -230,6 +231,7 @@ export default function WeeklyScheduleTable({
       start: slot.start,
       end: slot.end,
       approved: slot.status === 'approved',
+      userType: 'Barista', // 임시 기본값
     });
 
     if (slot.status === 'pending') {
@@ -268,6 +270,7 @@ export default function WeeklyScheduleTable({
     try {
       const newSchedule = {
         userId: selectedDateInfo.userId,
+        userType: 'Barista', // 임시 기본값
         date: selectedDateInfo.date,
         start: startTime.format('HH:mm'),
         end: endTime.format('HH:mm'),
@@ -317,6 +320,7 @@ export default function WeeklyScheduleTable({
         // Create two separate schedule entries
         const firstSchedule = {
           userId: selectedShiftInfo.userId,
+          userType: selectedShiftInfo.userType,
           date: selectedShiftInfo.date,
           start: firstSession.start?.format('HH:mm'),
           end: firstSession.end?.format('HH:mm'),
@@ -325,6 +329,7 @@ export default function WeeklyScheduleTable({
 
         const secondSchedule = {
           userId: selectedShiftInfo.userId,
+          userType: selectedShiftInfo.userType,
           date: selectedShiftInfo.date,
           start: secondSession.start?.format('HH:mm'),
           end: secondSession.end?.format('HH:mm'),
@@ -368,6 +373,7 @@ export default function WeeklyScheduleTable({
           body: JSON.stringify({
             id: selectedShiftInfo._id,
             approved: true,
+            userType: selectedShiftInfo.userType,
           }),
         });
 

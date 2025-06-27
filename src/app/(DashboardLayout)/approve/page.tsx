@@ -24,6 +24,7 @@ interface TimeSlot {
   start: string;
   end: string;
   approved: boolean;
+  userType: string;
 }
 
 interface WorkSession {
@@ -64,7 +65,7 @@ export default function ScheduleApprovalPage() {
     setOpenDialog(true);
   };
 
-  const handleApprove = async (sessions?: WorkSession[]) => {
+  const handleApprove = async (sessions?: WorkSession[], userType?: string) => {
     if (!selectedSlot) return;
 
     if (sessions && sessions.length > 1) {
@@ -75,6 +76,7 @@ export default function ScheduleApprovalPage() {
       // Create two separate schedule entries
       const firstSchedule = {
         userId: selectedSlot.userId,
+        userType: userType || selectedSlot.userType,
         name: selectedSlot.name,
         date: selectedSlot.date,
         start: firstSession.start?.format('HH:mm'),
@@ -84,6 +86,7 @@ export default function ScheduleApprovalPage() {
 
       const secondSchedule = {
         userId: selectedSlot.userId,
+        userType: userType || selectedSlot.userType,
         name: selectedSlot.name,
         date: selectedSlot.date,
         start: secondSession.start?.format('HH:mm'),
@@ -119,6 +122,7 @@ export default function ScheduleApprovalPage() {
           approved: true,
           start: startTime?.format('HH:mm'),
           end: endTime?.format('HH:mm'),
+          userType: userType || selectedSlot.userType,
         }),
       });
     }
@@ -369,6 +373,7 @@ export default function ScheduleApprovalPage() {
           selectedDate={selectedSlot?.date}
           userId={selectedSlot?.userId}
           currentScheduleId={selectedSlot?._id}
+          currentUserType={selectedSlot?.userType}
         />
 
         <EditShiftDialog

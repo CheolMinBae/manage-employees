@@ -79,13 +79,13 @@ export async function GET(req: NextRequest) {
       status: { $ne: 'deleted' }
     })
       .select('_id name position corp eid category userType')
-      .lean() as UserDocument[];
+      .lean();
 
     // 사용자 정보를 매핑합니다
     const users: { [key: string]: UserInfo } = {};
-    usersRaw.forEach(user => {
-      users[user._id.toString()] = {
-        _id: user._id.toString(),
+    usersRaw.forEach((user: any) => {
+          users[(user._id as any).toString()] = {
+      _id: (user._id as any).toString(),
         name: user.name,
         position: user.position,
         corp: user.corp,
@@ -235,7 +235,7 @@ export async function GET(req: NextRequest) {
       dates.forEach((date, dayIndex) => {
         const dateStr = weekDates[dayIndex]; // 원본 문자열 사용
         const daySchedules = schedules.filter(
-          s => s.userId.toString() === user._id.toString() && 
+          s => s.userId.toString() === (user._id as any).toString() && 
           s.date === dateStr
         );
 
