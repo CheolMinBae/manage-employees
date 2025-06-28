@@ -944,7 +944,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               ))}
               <TableCell align="center" sx={{ minWidth: 60, px: 0.5 }}>
                 <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-                  합계
+                  Total
                 </Typography>
               </TableCell>
             </TableRow>

@@ -3,7 +3,7 @@
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Typography, Paper, Box, Chip, Stack, IconButton, Grid, FormControl,
-  InputLabel, Select, MenuItem, TextField, Button
+  InputLabel, Select, MenuItem, TextField, Button, OutlinedInput, Autocomplete
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -76,6 +76,7 @@ export default function WeeklyScheduleTable({
 
   const [filterType, setFilterType] = useState<'name' | 'corp' | 'category' | 'eid'>('name');
   const [keyword, setKeyword] = useState('');
+  const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [trigger, setTrigger] = useState(0);
 
   const [approvalOpen, setApprovalOpen] = useState(false);
@@ -161,14 +162,27 @@ export default function WeeklyScheduleTable({
     }
   };
 
+  // 고유한 이름 목록 생성
+  const uniqueNames = useMemo(() => {
+    return Array.from(new Set(scheduleData.map(user => user.name))).sort();
+  }, [scheduleData]);
+
   const filteredData = useMemo(() => {
     const filtered = scheduleData;
+    
+    // Name 필터의 경우 멀티선택 사용
+    if (filterType === 'name') {
+      if (selectedNames.length === 0) return filtered;
+      return filtered.filter((u) => selectedNames.includes(u.name));
+    }
+    
+    // 다른 필터의 경우 기존 키워드 검색 사용
     if (!keyword.trim()) return filtered;
     return filtered.filter((u) => {
       const target = String(u[filterType]).toLowerCase();
       return target.includes(keyword.trim().toLowerCase());
     });
-  }, [scheduleData, filterType, keyword, userPosition, userName, trigger]);
+  }, [scheduleData, filterType, keyword, selectedNames, userPosition, userName, trigger]);
 
   const formatDateHeader = (dateStr: string) => {
     // 서버에서 전달하는 date 문자열(YYYY-MM-DD)을 직접 파싱하여 시간대 변환 방지
@@ -490,11 +504,15 @@ export default function WeeklyScheduleTable({
           <Grid item xs={12} md={2}>
             <FormControl fullWidth>
               <InputLabel>Filter by</InputLabel>
-              <Select
-                label="Filter by"
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value as any)}
-              >
+                              <Select
+                  label="Filter by"
+                  value={filterType}
+                  onChange={(e) => {
+                    setFilterType(e.target.value as any);
+                    setSelectedNames([]); // 필터 타입 변경 시 선택된 이름들 초기화
+                    setKeyword(''); // 키워드도 초기화
+                  }}
+                >
                 <MenuItem value="name">Name</MenuItem>
                 <MenuItem value="corp">Corp</MenuItem>
                 <MenuItem value="category">Category</MenuItem>
@@ -503,17 +521,64 @@ export default function WeeklyScheduleTable({
             </FormControl>
           </Grid>
           <Grid item xs={12} md={6}>
-            <TextField
-              fullWidth
-              label="Keyword"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && setTrigger((t) => t + 1)}
-            />
+            {filterType === 'name' ? (
+              <Autocomplete
+                multiple
+                options={uniqueNames}
+                value={selectedNames}
+                onChange={(event, newValue) => setSelectedNames(newValue)}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip
+                      label={option}
+                      size="small"
+                      {...getTagProps({ index })}
+                    />
+                  ))
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Select Names"
+                    placeholder="Choose employees..."
+                  />
+                )}
+                sx={{ width: '100%' }}
+              />
+            ) : (
+              <TextField
+                fullWidth
+                label="Keyword"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && setTrigger((t) => t + 1)}
+              />
+            )}
           </Grid>
-          <Grid item xs={12} md={2}>
-            <Button fullWidth variant="contained" onClick={() => setTrigger((t) => t + 1)}>
+          <Grid item xs={12} md={1}>
+            <Button 
+              fullWidth 
+              variant="contained" 
+              onClick={() => {
+                setTrigger((t) => t + 1);
+                // Name 필터가 아닌 경우에만 키워드 검색 실행
+                // Name 필터의 경우 실시간으로 필터링됨
+              }}
+            >
               Search
+            </Button>
+          </Grid>
+          <Grid item xs={12} md={1}>
+            <Button 
+              fullWidth 
+              variant="outlined" 
+              onClick={() => {
+                setSelectedNames([]);
+                setKeyword('');
+                setTrigger((t) => t + 1);
+              }}
+            >
+              Clear
             </Button>
           </Grid>
         </Grid>
