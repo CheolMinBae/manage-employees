@@ -189,14 +189,21 @@ export async function GET(req: NextRequest) {
       fgColor: { argb: 'FFD4E6F1' } // 연한 파란색 배경
     };
 
-    // 데이터 행 추가
-    schedules.forEach((schedule, index) => {
+    // 모든 사용자 목록 생성 (스케줄이 있는 사용자 + 스케줄이 없는 사용자)
+    const scheduledUsers = Array.from(new Set(schedules.map(s => s.userId.toString())));
+    const allUserIds = Object.keys(users);
+    const uniqueUsers = Array.from(new Set([...scheduledUsers, ...allUserIds]))
+      .filter(userId => users[userId]) // 유효한 사용자만 포함
+      .sort((a, b) => users[a].name.localeCompare(users[b].name)); // 이름순 정렬
+    
+    // 데이터 행 추가 (사용자별로 하나씩)
+    uniqueUsers.forEach((userId, index) => {
       const row = worksheet.getRow(index + 4);
       
       // 사용자 정보 가져오기
-      const user = users[schedule.userId.toString()];
+      const user = users[userId];
       if (!user) {
-        console.warn(`User not found for schedule: ${schedule._id}`);
+        console.warn(`User not found for userId: ${userId}`);
         return;
       }
 
@@ -227,16 +234,17 @@ export async function GET(req: NextRequest) {
       categoryCell.font = { name: 'Arial', size: 10 };
 
       const positionCell = row.getCell(5);
-      positionCell.value = user.userType && user.userType.length > 0 ? user.userType[0] : user.position || '';
+      positionCell.value = Array.isArray(user.userType) && user.userType.length > 0 
+        ? user.userType.join(', ') 
+        : (user.position || 'Employee');
       positionCell.alignment = { horizontal: 'center', vertical: 'middle' };
       positionCell.font = { name: 'Arial', size: 10 };
 
-      // 각 날짜별 스케줄 설정 (스케줄 셀에만 특별한 처리)
+      // 각 날짜별 스케줄 설정
       dates.forEach((date, dayIndex) => {
-        const dateStr = weekDates[dayIndex]; // 원본 문자열 사용
+        const dateStr = weekDates[dayIndex];
         const daySchedules = schedules.filter(
-          s => s.userId.toString() === (user._id as any).toString() && 
-          s.date === dateStr
+          s => s.userId.toString() === userId && s.date === dateStr
         );
 
         const cell = row.getCell(dayIndex + 6);
