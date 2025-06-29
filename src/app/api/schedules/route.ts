@@ -90,7 +90,9 @@ export async function GET(req: NextRequest) {
             corp: user.corp,
             eid: user.eid,
             category: user.category,
-            position: user.userType && user.userType.length > 0 ? user.userType[0] : 'Barista',
+            position: Array.isArray(user.userType) && user.userType.length > 0 
+              ? user.userType.join(', ') 
+              : (user.userType || 'Barista'),
           });
         });
 
@@ -126,7 +128,9 @@ export async function GET(req: NextRequest) {
         corp: user.corp,
         eid: user.eid,
         category: user.category,
-        position: user.userType && user.userType.length > 0 ? user.userType[0] : 'Barista',
+        position: Array.isArray(user.userType) && user.userType.length > 0 
+          ? user.userType.join(', ') 
+          : (user.userType || 'Barista'),
       });
     });
 

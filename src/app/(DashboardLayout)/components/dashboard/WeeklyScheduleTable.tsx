@@ -32,7 +32,7 @@ interface DailyShift {
 interface UserSchedule {
   userId: string;
   name: string;
-  position: string;
+  position: string | string[];
   corp: string;
   eid: number | string;
   category: string;
@@ -608,7 +608,11 @@ export default function WeeklyScheduleTable({
                     <Chip label={user.category} size="small" variant="outlined" />
                   </Stack>
                 </TableCell>
-                <TableCell>{user.position}</TableCell>
+                <TableCell>
+                  {Array.isArray(user.position) 
+                    ? user.position.join(', ') 
+                    : String(user.position || 'Employee')}
+                </TableCell>
                 {sortedDates.map((date) => {
                   const shifts = getShiftsForDate(user.shifts, date);
                   return (
