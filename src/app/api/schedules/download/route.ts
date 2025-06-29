@@ -84,8 +84,14 @@ export async function GET(req: NextRequest) {
     // 사용자 정보를 매핑합니다
     const users: { [key: string]: UserInfo } = {};
     usersRaw.forEach((user: any) => {
-          users[(user._id as any).toString()] = {
-      _id: (user._id as any).toString(),
+      console.log('User data from DB:', {
+        name: user.name,
+        userType: user.userType,
+        position: user.position
+      });
+      
+      users[(user._id as any).toString()] = {
+        _id: (user._id as any).toString(),
         name: user.name,
         position: user.position,
         corp: user.corp,
@@ -234,9 +240,17 @@ export async function GET(req: NextRequest) {
       categoryCell.font = { name: 'Arial', size: 10 };
 
       const positionCell = row.getCell(5);
+      console.log('Setting position cell for user:', {
+        name: user.name,
+        userType: user.userType,
+        position: user.position,
+        isArray: Array.isArray(user.userType),
+        hasLength: user.userType && user.userType.length > 0
+      });
+      
       positionCell.value = Array.isArray(user.userType) && user.userType.length > 0 
         ? user.userType.join(', ') 
-        : (user.position || 'Employee');
+        : String(user.userType || '');
       positionCell.alignment = { horizontal: 'center', vertical: 'middle' };
       positionCell.font = { name: 'Arial', size: 10 };
 

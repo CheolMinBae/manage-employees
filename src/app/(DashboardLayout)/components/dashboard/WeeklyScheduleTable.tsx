@@ -131,13 +131,6 @@ export default function WeeklyScheduleTable({
   const handleDownloadExcel = async () => {
     try {
       const weekStartFormatted = dayjs(weekStart).format('YYYY-MM-DD');
-      console.log('WeeklyScheduleTable Excel Download:', {
-        weekStart,
-        weekStartFormatted,
-        weekStartDay: weekStart.getDay(), // 0=Sunday
-        dates,
-        sortedDates
-      });
 
       const response = await fetch(`/api/schedules/download?weekStart=${weekStartFormatted}`, {
         method: 'GET',

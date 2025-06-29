@@ -773,7 +773,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               <TextField
                 {...params}
                 label="Position"
-                placeholder="검색하여 선택..."
+                placeholder="search..."
                 size="small"
               />
             )}
