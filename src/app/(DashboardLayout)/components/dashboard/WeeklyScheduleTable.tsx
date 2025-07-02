@@ -206,14 +206,13 @@ export default function WeeklyScheduleTable({
     }
   };
 
-  // 주간 총 근무 시간 계산 함수
-  const calculateWeeklyHours = (user: UserSchedule): string => {
+  // 주간 총 근무 시간 계산 함수 (승인 상태별로 계산)
+  const calculateWeeklyHoursByStatus = (user: UserSchedule, status: 'approved' | 'pending'): string => {
     let totalMinutes = 0;
 
     user.shifts.forEach(dailyShift => {
       dailyShift.slots.forEach(slot => {
-        // approved된 스케줄만 계산 (optional: 모든 status 포함하려면 이 조건 제거)
-        if (slot.status === 'approved') {
+        if (slot.status === status) {
           const startTime = slot.start.split(':');
           const endTime = slot.end.split(':');
           
@@ -609,16 +608,30 @@ export default function WeeklyScheduleTable({
                   );
                 })}
                 <TableCell align="center">
-                  <Typography 
-                    variant="body2" 
-                    fontWeight="bold"
-                    sx={{ 
-                      color: '#1976d2',
-                      fontSize: '0.875rem'
-                    }}
-                  >
-                    {calculateWeeklyHours(user)}
-                  </Typography>
+                  <Box display="flex" flexDirection="column" gap={0.5}>
+                    {/* 승인된 스케줄 시간 */}
+                    <Typography 
+                      variant="body2" 
+                      fontWeight="bold"
+                      sx={{ 
+                        color: '#2e7d32', // approved 색상
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      {calculateWeeklyHoursByStatus(user, 'approved')}
+                    </Typography>
+                    {/* 미승인 스케줄 시간 */}
+                    <Typography 
+                      variant="body2" 
+                      fontWeight="bold"
+                      sx={{ 
+                        color: '#f9a825', // pending 색상
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      {calculateWeeklyHoursByStatus(user, 'pending')}
+                    </Typography>
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}

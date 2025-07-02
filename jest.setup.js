@@ -95,4 +95,15 @@ global.console = {
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
-} 
+}
+
+// Mock window.confirm and window.alert
+Object.defineProperty(window, 'confirm', {
+  writable: true,
+  value: jest.fn(() => true)
+})
+
+Object.defineProperty(window, 'alert', {
+  writable: true,
+  value: jest.fn()
+}) 
