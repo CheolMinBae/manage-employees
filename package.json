@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",
@@ -53,8 +56,15 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
     "@types/lodash": "4.14.196",
     "@types/react-date-range": "^1.4.10",
-    "prisma": "^6.10.1"
+    "jest": "^30.0.3",
+    "jest-environment-jsdom": "^30.0.2",
+    "prisma": "^6.10.1",
+    "ts-jest": "^29.4.0"
   }
 }
