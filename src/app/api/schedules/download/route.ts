@@ -277,7 +277,7 @@ export async function GET(req: NextRequest) {
             .map(s => {
               const timeText = `${s.start}–${s.end}`;
               // pending 상태인 경우 (P) 표시 추가
-              return s.approved ? timeText : `${timeText}(P)`;
+              return s.approved ? timeText : `${timeText}`;
             });
 
           if (scheduleItems.length === 1) {

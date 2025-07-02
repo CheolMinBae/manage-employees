@@ -206,6 +206,44 @@ export default function WeeklyScheduleTable({
     }
   };
 
+  // 주간 총 근무 시간 계산 함수
+  const calculateWeeklyHours = (user: UserSchedule): string => {
+    let totalMinutes = 0;
+
+    user.shifts.forEach(dailyShift => {
+      dailyShift.slots.forEach(slot => {
+        // approved된 스케줄만 계산 (optional: 모든 status 포함하려면 이 조건 제거)
+        if (slot.status === 'approved') {
+          const startTime = slot.start.split(':');
+          const endTime = slot.end.split(':');
+          
+          const startMinutes = parseInt(startTime[0]) * 60 + parseInt(startTime[1]);
+          const endMinutes = parseInt(endTime[0]) * 60 + parseInt(endTime[1]);
+          
+          // 시간이 다음날로 넘어가는 경우 처리 (예: 23:00 - 01:00)
+          let duration = endMinutes - startMinutes;
+          if (duration < 0) {
+            duration += 24 * 60; // 24시간 추가
+          }
+          
+          totalMinutes += duration;
+        }
+      });
+    });
+
+    // 분을 시간으로 변환
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    if (hours === 0 && minutes === 0) {
+      return '0h';
+    } else if (minutes === 0) {
+      return `${hours}h`;
+    } else {
+      return `${hours}h ${minutes}m`;
+    }
+  };
+
   const handleSlotClick = (slot: ShiftSlot, user: UserSchedule, date: string) => {
     // Admin can edit any schedule, Employee can only edit their own
     if (userPosition === 'employee' && user.name !== userName) {
@@ -280,7 +318,6 @@ export default function WeeklyScheduleTable({
       }
 
       const result = await response.json();
-      console.log('Create result:', result);
 
       setAddScheduleOpen(false);
       setSelectedDateInfo(null);
@@ -504,6 +541,7 @@ export default function WeeklyScheduleTable({
                   <strong>{formatDateHeader(date)}</strong>
                 </TableCell>
               ))}
+              <TableCell align="center"><strong>Weekly Total</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -570,6 +608,18 @@ export default function WeeklyScheduleTable({
                     </TableCell>
                   );
                 })}
+                <TableCell align="center">
+                  <Typography 
+                    variant="body2" 
+                    fontWeight="bold"
+                    sx={{ 
+                      color: '#1976d2',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    {calculateWeeklyHours(user)}
+                  </Typography>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
