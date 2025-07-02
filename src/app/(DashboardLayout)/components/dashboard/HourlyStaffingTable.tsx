@@ -390,9 +390,9 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   const sortedEmployees = [...filteredEmployees].sort((a, b) => {
     if (!sortConfig.hour || !sortConfig.direction) return 0;
     
-    const hourIndex = sortConfig.hour - 3; // hour 3-23을 인덱스 0-20으로 변환
-    const aWorkingRatio = a.hourlyStatus?.[hourIndex]?.workingRatio || 0;
-    const bWorkingRatio = b.hourlyStatus?.[hourIndex]?.workingRatio || 0;
+    // hourlyStatus 배열은 0~23시간을 담고 있으므로 직접 hour 값을 인덱스로 사용
+    const aWorkingRatio = a.hourlyStatus?.[sortConfig.hour]?.workingRatio || 0;
+    const bWorkingRatio = b.hourlyStatus?.[sortConfig.hour]?.workingRatio || 0;
     
     if (sortConfig.direction === 'desc') {
       return bWorkingRatio - aWorkingRatio; // 내림차순 (많이 일하는 순)
