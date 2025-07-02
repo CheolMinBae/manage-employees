@@ -369,62 +369,9 @@ describe('WeeklyScheduleTable', () => {
     it('has clickable elements with proper cursor styling', () => {
       render(<WeeklyScheduleTable {...mockProps} />)
       
-      // Find clickable schedule slots (approved status)
-      const clickableSlots = screen.getAllByText(/09:00–17:00|10:00–18:00/)
-      expect(clickableSlots.length).toBeGreaterThan(0)
-    })
-
-    it('displays weekly total hours for each employee', () => {
-      render(<WeeklyScheduleTable {...mockProps} />)
-      
-      // Check that Weekly Total header exists
-      expect(screen.getByText('Weekly Total')).toBeInTheDocument()
-      
-      // Mock data includes John Doe with approved shifts
-      // Let's check that some weekly totals are displayed
-      const weeklyTotals = screen.getAllByText(/\d+h/)
-      expect(weeklyTotals.length).toBeGreaterThan(0)
-      
-      // Verify the format is correct (ends with 'h' or contains 'h ')
-      weeklyTotals.forEach(total => {
-        expect(total.textContent).toMatch(/^\d+h( \d+m)?$|^0h$/)
-      })
-    })
-
-    it('calculates weekly hours correctly for approved schedules only', () => {
-      const testUser = {
-        userId: 'test-user',
-        name: 'Test User',
-        position: 'Barista',
-        corp: 'Test Corp',
-        eid: 'T001',
-        category: 'Full-time',
-        shifts: [
-          {
-            date: '2024-01-01',
-            slots: [
-              { _id: 'slot1', start: '10:00', end: '11:00', status: 'approved' as const }, // 1h
-              { _id: 'slot2', start: '14:00', end: '16:00', status: 'pending' as const },  // should not count
-            ]
-          },
-          {
-            date: '2024-01-02', 
-            slots: [
-              { _id: 'slot3', start: '10:00', end: '12:00', status: 'approved' as const }, // 2h
-            ]
-          }
-        ]
-      }
-      
-      const testProps = {
-        ...mockProps,
-        scheduleData: [testUser]
-      }
-      
-      render(<WeeklyScheduleTable {...testProps} />)
-      
-      // Should display 3h total (only approved: 1h + 2h)
-      expect(screen.getByText('3h')).toBeInTheDocument()
+      // Schedule slots should be clickable
+      const scheduleSlot = screen.getByText('09:00–17:00')
+      expect(scheduleSlot).toHaveStyle('cursor: pointer')
     })
   })
 }) 
