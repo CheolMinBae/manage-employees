@@ -101,6 +101,12 @@ export default function WeeklyScheduleTable({
     userId: string;
     date: string;
     userName: string;
+    userInfo?: {
+      _id: string;
+      name: string;
+      userType: string;
+      position: string;
+    };
   } | null>(null);
 
   // publish 상태
@@ -279,10 +285,19 @@ export default function WeeklyScheduleTable({
       return;
     }
     
+    // 사용자 정보를 SimpleAddShiftDialog 형식으로 변환
+    const userInfo = {
+      _id: user.userId,
+      name: user.name,
+      userType: Array.isArray(user.position) ? user.position[0] : (user.position || 'Employee'), // position을 userType으로 사용
+      position: Array.isArray(user.position) ? user.position.join(', ') : (user.position || 'Employee'),
+    };
+    
     setSelectedDateInfo({
       userId: user.userId,
       date,
       userName: user.name,
+      userInfo, // 사용자 정보 추가
     });
     setStartTime(null);
     setEndTime(null);
@@ -706,6 +721,7 @@ export default function WeeklyScheduleTable({
         selectedDate={selectedDateInfo?.date ? dayjs(selectedDateInfo.date) : null}
         userId={selectedDateInfo?.userId || ''}
         userName={selectedDateInfo?.userName || ''}
+        userInfo={selectedDateInfo?.userInfo}
         fetchSchedules={() => onRefresh?.()}
       />
     </Box>
