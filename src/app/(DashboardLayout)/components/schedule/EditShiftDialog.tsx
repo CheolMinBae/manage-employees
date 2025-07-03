@@ -425,6 +425,37 @@ export default function EditShiftDialog({
     }
   };
 
+  const handleResetToPending = async () => {
+    if (!slot) return;
+
+    if (!confirm('Are you sure you want to reset this schedule to pending status?')) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/schedules', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: slot._id,
+          approved: false,
+        }),
+      });
+
+      if (response.ok) {
+        alert('Schedule status reset to pending successfully');
+        onClose();
+        fetchSchedules();
+      } else {
+        throw new Error('Failed to reset schedule status');
+      }
+    } catch (error) {
+      console.error('Error resetting schedule status:', error);
+      alert('Failed to reset schedule status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Show unauthorized message if user cannot edit schedules
   if (!canEditSchedule()) {
     return (
@@ -641,6 +672,16 @@ export default function EditShiftDialog({
             </Button>
           </Box>
           <Box display="flex" gap={1}>
+            {slot?.approved && (
+              <Button 
+                onClick={handleResetToPending} 
+                color="warning"
+                variant="outlined"
+                disabled={loading}
+              >
+                Reset to Pending
+              </Button>
+            )}
             <Button 
               onClick={handleDeleteCurrentSchedule} 
               color="error"
