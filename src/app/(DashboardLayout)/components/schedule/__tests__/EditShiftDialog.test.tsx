@@ -563,6 +563,57 @@ describe('EditShiftDialog', () => {
         }));
       });
     });
+
+    it('should show Reset to Pending button for approved schedules', async () => {
+      const approvedSlot = {
+        ...defaultSlot,
+        approved: true
+      };
+
+      render(<EditShiftDialog {...defaultProps} slot={approvedSlot} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Reset to Pending')).toBeInTheDocument();
+      });
+    });
+
+    it('should not show Reset to Pending button for pending schedules', async () => {
+      const pendingSlot = {
+        ...defaultSlot,
+        approved: false
+      };
+
+      render(<EditShiftDialog {...defaultProps} slot={pendingSlot} />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Reset to Pending')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should reset schedule to pending when Reset to Pending button is clicked', async () => {
+      const approvedSlot = {
+        ...defaultSlot,
+        approved: true
+      };
+
+      render(<EditShiftDialog {...defaultProps} slot={approvedSlot} />);
+
+      await waitFor(() => {
+        const resetButton = screen.getByText('Reset to Pending');
+        fireEvent.click(resetButton);
+      });
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith('/api/schedules', expect.objectContaining({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: expect.stringContaining('"approved":false')
+        }));
+      });
+
+      expect(defaultProps.fetchSchedules).toHaveBeenCalledTimes(1);
+      expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Error Handling', () => {
@@ -625,6 +676,38 @@ describe('EditShiftDialog', () => {
       await waitFor(() => {
         const deleteButton = screen.getByText('Delete');
         fireEvent.click(deleteButton);
+      });
+
+      // Just verify the component doesn't crash and remains functional
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle reset to pending API errors gracefully', async () => {
+      const approvedSlot = {
+        ...defaultSlot,
+        approved: true
+      };
+
+      (global.fetch as jest.Mock).mockImplementation((url: string, options?: any) => {
+        if (options?.method === 'PUT' && options?.body?.includes('"approved":false')) {
+          return Promise.resolve({
+            ok: false,
+            status: 500
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
+        });
+      });
+
+      render(<EditShiftDialog {...defaultProps} slot={approvedSlot} />);
+
+      await waitFor(() => {
+        const resetButton = screen.getByText('Reset to Pending');
+        fireEvent.click(resetButton);
       });
 
       // Just verify the component doesn't crash and remains functional
@@ -732,13 +815,19 @@ describe('EditShiftDialog', () => {
     });
 
     it('should have proper button roles', async () => {
-      render(<EditShiftDialog {...defaultProps} />);
+      const approvedSlot = {
+        ...defaultSlot,
+        approved: true
+      };
+
+      render(<EditShiftDialog {...defaultProps} slot={approvedSlot} />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Make OFF' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Reset to Pending' })).toBeInTheDocument();
       });
     });
   });
