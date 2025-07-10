@@ -456,6 +456,37 @@ export default function EditShiftDialog({
     }
   };
 
+  const handleApprove = async () => {
+    if (!slot) return;
+
+    if (!confirm('Are you sure you want to approve this schedule?')) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/schedules', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: slot._id,
+          approved: true,
+        }),
+      });
+
+      if (response.ok) {
+        alert('Schedule approved successfully');
+        onClose();
+        fetchSchedules();
+      } else {
+        throw new Error('Failed to approve schedule');
+      }
+    } catch (error) {
+      console.error('Error approving schedule:', error);
+      alert('Failed to approve schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Show unauthorized message if user cannot edit schedules
   if (!canEditSchedule()) {
     return (
@@ -672,6 +703,16 @@ export default function EditShiftDialog({
             </Button>
           </Box>
           <Box display="flex" gap={1}>
+            {isAdmin && !slot?.approved && (
+              <Button 
+                onClick={handleApprove} 
+                color="success"
+                variant="contained"
+                disabled={loading}
+              >
+                Approve
+              </Button>
+            )}
             {slot?.approved && (
               <Button 
                 onClick={handleResetToPending} 

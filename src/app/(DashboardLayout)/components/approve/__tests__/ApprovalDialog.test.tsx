@@ -24,6 +24,7 @@ const defaultProps = {
   setStartTime: jest.fn(),
   setEndTime: jest.fn(),
   onApprove: jest.fn(),
+  onSave: jest.fn(),
   onDelete: jest.fn(),
   selectedDate: '2024-01-15',
   userId: 'user123',
@@ -242,6 +243,7 @@ describe('ApprovalDialog', () => {
       await waitFor(() => {
         expect(screen.getByText('Cancel')).toBeInTheDocument();
         expect(screen.getByText('Approve')).toBeInTheDocument();
+        expect(screen.getByText('Save')).toBeInTheDocument();
         expect(screen.getByText('Delete')).toBeInTheDocument();
       });
     });
@@ -540,6 +542,20 @@ describe('ApprovalDialog', () => {
       );
     });
 
+    it('should call onSave when Save button is clicked', async () => {
+      render(<ApprovalDialog {...defaultProps} />);
+
+      await waitFor(() => {
+        const saveButton = screen.getByText('Save');
+        fireEvent.click(saveButton);
+      });
+
+      expect(defaultProps.onSave).toHaveBeenCalledWith(
+        [{ start: defaultProps.startTime, end: defaultProps.endTime }],
+        'barista'
+      );
+    });
+
     it('should call onDelete when Delete button is clicked', async () => {
       render(<ApprovalDialog {...defaultProps} />);
 
@@ -581,6 +597,36 @@ describe('ApprovalDialog', () => {
       );
     });
 
+    it('should save with separated sessions when split', async () => {
+      const longShiftProps = {
+        ...defaultProps,
+        startTime: dayjs('2024-01-15 09:00'),
+        endTime: dayjs('2024-01-15 17:00')
+      };
+
+      render(<ApprovalDialog {...longShiftProps} />);
+
+      // Split sessions first
+      await waitFor(() => {
+        const splitButton = screen.getByText('Split Sessions');
+        fireEvent.click(splitButton);
+      });
+
+      // Then save
+      await waitFor(() => {
+        const saveButton = screen.getByText('Save');
+        fireEvent.click(saveButton);
+      });
+
+      expect(defaultProps.onSave).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ start: expect.any(Object), end: expect.any(Object) }),
+          expect.objectContaining({ start: expect.any(Object), end: expect.any(Object) })
+        ]),
+        'barista'
+      );
+    });
+
     it('should not render delete button when onDelete is not provided', async () => {
       const propsWithoutDelete = {
         ...defaultProps,
@@ -591,6 +637,20 @@ describe('ApprovalDialog', () => {
 
       await waitFor(() => {
         expect(screen.queryByText('Delete')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should not render save button when onSave is not provided', async () => {
+      const propsWithoutSave = {
+        ...defaultProps,
+        onSave: undefined
+      };
+
+      render(<ApprovalDialog {...propsWithoutSave} />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Save')).not.toBeInTheDocument();
+        expect(screen.getByText('Approve')).toBeInTheDocument();
       });
     });
   });
@@ -769,6 +829,7 @@ describe('ApprovalDialog', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
       });
     });

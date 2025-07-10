@@ -19,6 +19,7 @@ interface Props {
   setStartTime: (val: Dayjs | null) => void;
   setEndTime: (val: Dayjs | null) => void;
   onApprove: (sessions?: WorkSession[], userType?: string) => void;
+  onSave?: (sessions?: WorkSession[], userType?: string) => void;
   onDelete?: () => void;
   selectedDate?: string;
   userId?: string;
@@ -49,6 +50,7 @@ const ApprovalDialog = ({
   startTime, endTime,
   setStartTime, setEndTime,
   onApprove,
+  onSave,
   onDelete,
   selectedDate,
   userId,
@@ -303,6 +305,19 @@ const ApprovalDialog = ({
     }
   };
 
+  // Handle save without approval
+  const handleSave = () => {
+    if (onSave) {
+      if (isSeparated) {
+        // Save with separated session information
+        onSave(sessions, selectedUserType);
+      } else {
+        // Regular save with single session
+        onSave([{ start: startTime, end: endTime }], selectedUserType);
+      }
+    }
+  };
+
   // Handle deletion
   const handleDelete = () => {
     if (onDelete) {
@@ -501,6 +516,15 @@ const ApprovalDialog = ({
             onClick={handleDelete}
           >
             Delete
+          </Button>
+        )}
+        {onSave && (
+          <Button 
+            variant="outlined" 
+            color="primary"
+            onClick={handleSave}
+          >
+            Save
           </Button>
         )}
         <Button variant="contained" onClick={handleApprove}>
