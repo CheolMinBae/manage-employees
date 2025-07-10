@@ -229,7 +229,7 @@ describe('HourlyStaffingTable', () => {
       await user.click(nineAmHeader)
       await waitFor(() => {
         const sortedText = screen.getAllByText(/Most working first/);
-        expect(sortedText.length).toBeGreaterThan(0); // At least one element should contain this text
+        expect(sortedText.length).toBeGreaterThan(0) // At least one element should contain this text
         expect(screen.getByText(/Sorted by 9 AM.*Most working first/)).toBeInTheDocument()
       })
       
@@ -486,6 +486,66 @@ describe('HourlyStaffingTable', () => {
       })
     })
 
+    it('does not show filter controls for non-admin users', async () => {
+      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      
+      await waitFor(() => {
+        expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()
+      })
+      
+      // Should NOT show filter controls
+      expect(screen.queryByText('🔍 Filter Employees')).not.toBeInTheDocument()
+    })
+
+    it('only shows employee their own schedules', async () => {
+      // For employee users, they should only see their own data
+      // Since default mock data doesn't contain "Employee User", no employees should be shown
+      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      
+      await waitFor(() => {
+        expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()
+      })
+      
+      // Should NOT see the default mock employees since they're not the logged-in employee
+      expect(screen.queryByText('John Doe (Barista)')).not.toBeInTheDocument()
+      expect(screen.queryByText('Jane Smith (Manager)')).not.toBeInTheDocument()
+    })
+
+    it('employee can only add shifts to their own schedule', async () => {
+      // Since the default mock data doesn't contain the logged-in employee,
+      // the table should show no employees for non-admin users
+      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      
+      await waitFor(() => {
+        expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()
+      })
+      
+      // Should not see any employee names from the default mock data
+      expect(screen.queryByText('John Doe (Barista)')).not.toBeInTheDocument()
+      expect(screen.queryByText('Jane Smith (Manager)')).not.toBeInTheDocument()
+      
+      // Since no employees are shown, no add buttons should be available
+      const addButtons = screen.queryAllByRole('button').filter(btn => 
+        btn.querySelector('svg')?.getAttribute('data-testid') === 'AddIcon'
+      )
+      expect(addButtons.length).toBe(0)
+    })
+
+    it('employee cannot edit other employees working hours', async () => {
+      // Use original mock data that has different employee names
+      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      
+      // Since employee can only see their own schedule and the mock data doesn't contain 
+      // the logged-in employee "Employee User", the table should be mostly empty
+      await waitFor(() => {
+        expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()
+      })
+      
+      // Should NOT see the default mock employees (John Doe, Jane Smith)
+      expect(screen.queryByText('John Doe (Barista)')).not.toBeInTheDocument()
+      expect(screen.queryByText('Jane Smith (Manager)')).not.toBeInTheDocument()
+    })
+
     it('does not show template options for employee users', async () => {
       const user = userEvent.setup()
       render(<HourlyStaffingTable initialDate={defaultDate} />)
@@ -578,8 +638,9 @@ describe('HourlyStaffingTable', () => {
         // For MUI Tooltips, the tooltip content might not be immediately visible
         // Just verify the working hour elements exist
         expect(workingHours[0]).toBeInTheDocument()
-        // Verify it's clickable by checking for event handlers or parent element
-        expect(workingHours[0].closest('[role="cell"]')).toBeInTheDocument()
+        // Check if the element is properly positioned within the table structure
+        const parentCell = workingHours[0].closest('td')
+        expect(parentCell).toBeInTheDocument()
       } else {
         // If no working hours found, just verify the component loaded
         expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()

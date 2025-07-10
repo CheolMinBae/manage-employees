@@ -99,7 +99,7 @@ export default function Dashboard() {
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tabs value={tabValue} onChange={handleTabChange} aria-label="dashboard tabs">
               <Tab label="📅 Weekly Schedule" {...a11yProps(0)} />
-              {isAdmin && <Tab label="👥 Hourly Staffing" {...a11yProps(1)} />}
+              <Tab label="👥 Hourly Staffing" {...a11yProps(1)} />
             </Tabs>
           </Box>
           
@@ -118,11 +118,9 @@ export default function Dashboard() {
             </Grid>
           </TabPanel>
           
-          {isAdmin && (
-            <TabPanel value={tabValue} index={1}>
-              <HourlyStaffingTable initialDate={new Date()} />
-            </TabPanel>
-          )}
+          <TabPanel value={tabValue} index={1}>
+            <HourlyStaffingTable initialDate={new Date()} />
+          </TabPanel>
         </Box>
       </PageContainer>
     </LocalizationProvider>

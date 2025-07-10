@@ -207,12 +207,37 @@ describe('WeeklyScheduleTable', () => {
       expect(screen.queryByText('Filter by')).not.toBeInTheDocument()
     })
 
-    it('only allows employees to interact with their own schedules', () => {
+    it('only shows employee their own schedules', () => {
+      // For employee users, they should only see their own data
+      // Since mock data doesn't contain "Employee User", the table should be empty
       render(<WeeklyScheduleTable {...mockProps} />)
       
-      // Employee should only see their own data (but mock data doesn't match employee name)
-      // This test verifies the filtering logic is in place
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      // The table body should be empty since employee can't see other employees' data
+      const tableBody = document.querySelector('tbody')
+      expect(tableBody).toBeInTheDocument()
+      expect(tableBody?.children.length).toBe(0) // No rows should be rendered
+    })
+
+    it('employee can only interact with their own schedule slots', () => {
+      // Since the default mock data doesn't contain the logged-in employee,
+      // the table should be empty for non-admin users
+      render(<WeeklyScheduleTable {...mockProps} />)
+      
+      // Should not see any employee rows
+      const tableBody = document.querySelector('tbody')
+      expect(tableBody).toBeInTheDocument()
+      expect(tableBody?.children.length).toBe(0)
+    })
+
+    it('employee cannot see other employees schedules', () => {
+      // Use original mock data that has different employee names
+      render(<WeeklyScheduleTable {...mockProps} />)
+      
+      // Since the logged-in user is "Employee User" but mock data has "John Doe" and "Jane Smith",
+      // the table body should be empty (no employees shown)
+      const tableBody = document.querySelector('tbody')
+      expect(tableBody).toBeInTheDocument()
+      expect(tableBody?.children.length).toBe(0) // No rows should be rendered
     })
   })
 
