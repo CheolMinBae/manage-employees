@@ -659,11 +659,24 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     return '#4caf50';
   };
 
-  // 직원별 전체 시간 합계 계산 함수 (실제 근무 시간만 합산)
-  const getEmployeeTotalHours = (employee: EmployeeSchedule): number => {
-    return (employee.hourlyStatus || []).reduce((sum: number, status: any) => {
-      return sum + (status?.isWorking ? (status?.workingRatio || 0) : 0);
-    }, 0);
+  // 직원별 전체 시간 합계 계산 함수 (approved/pending 분리)
+  const getEmployeeTotalHours = (employee: EmployeeSchedule): { approved: number; pending: number; total: number } => {
+    const result = (employee.hourlyStatus || []).reduce((acc: { approved: number; pending: number }, status: any) => {
+      if (status?.isWorking && status?.workingRatio) {
+        if (status.approved === true) {
+          acc.approved += status.workingRatio;
+        } else {
+          acc.pending += status.workingRatio;
+        }
+      }
+      return acc;
+    }, { approved: 0, pending: 0 });
+    
+    return {
+      approved: result.approved,
+      pending: result.pending,
+      total: result.approved + result.pending
+    };
   };
 
   // 시간 표시 함수 (서버에서 전달하는 hour 값은 이미 캘리포니아 시간 기준)
@@ -1002,12 +1015,38 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 </>
               ))}
               <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
-                <Typography variant="body2" fontWeight="bold">
-                  {/* 전체 직원 합계의 합계 */}
-                  {sortedEmployees
-                    .reduce((sum, emp) => sum + getEmployeeTotalHours(emp), 0)
-                    .toFixed(2)}
-                </Typography>
+                <Box display="flex" flexDirection="column" gap={0.5}>
+                  {/* Pending 총합 */}
+                  <Typography 
+                    variant="body2" 
+                    fontWeight="bold"
+                    sx={{ 
+                      color: '#ff9800', // pending 색상
+                      fontSize: '0.75rem',
+                      lineHeight: 1
+                    }}
+                  >
+                    {sortedEmployees
+                      .reduce((sum, emp) => sum + getEmployeeTotalHours(emp).pending, 0)
+                      .toFixed(2)}
+                  </Typography>
+                  {/* 구분선 */}
+                  <Divider sx={{ my: 0.1 }} />
+                  {/* Approved 총합 */}
+                  <Typography 
+                    variant="body2" 
+                    fontWeight="bold"
+                    sx={{ 
+                      color: '#4caf50', // approved 색상
+                      fontSize: '0.75rem',
+                      lineHeight: 1
+                    }}
+                  >
+                    {sortedEmployees
+                      .reduce((sum, emp) => sum + getEmployeeTotalHours(emp).approved, 0)
+                      .toFixed(2)}
+                  </Typography>
+                </Box>
               </TableCell>
             </TableRow>
 
@@ -1116,9 +1155,34 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   );
                 })}
                 <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
-                  <Typography variant="body2" fontWeight="bold">
-                    {getEmployeeTotalHours(employee).toFixed(2)}
-                  </Typography>
+                  <Box display="flex" flexDirection="column" gap={0.5}>
+                    {/* Pending 시간 */}
+                    <Typography 
+                      variant="body2" 
+                      fontWeight="bold"
+                      sx={{ 
+                        color: '#ff9800', // pending 색상
+                        fontSize: '0.75rem',
+                        lineHeight: 1
+                      }}
+                    >
+                      {getEmployeeTotalHours(employee).pending.toFixed(2)}
+                    </Typography>
+                    {/* 구분선 */}
+                    <Divider sx={{ my: 0.1 }} />
+                    {/* Approved 시간 */}
+                    <Typography 
+                      variant="body2" 
+                      fontWeight="bold"
+                      sx={{ 
+                        color: '#4caf50', // approved 색상
+                        fontSize: '0.75rem',
+                        lineHeight: 1
+                      }}
+                    >
+                      {getEmployeeTotalHours(employee).approved.toFixed(2)}
+                    </Typography>
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}
