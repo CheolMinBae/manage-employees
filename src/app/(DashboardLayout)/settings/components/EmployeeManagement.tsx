@@ -491,7 +491,15 @@ export default function EmployeeManagement() {
                     {(selected as string[]).map((value) => {
                       const role = userRoles.find(r => r.key.toLowerCase() === value);
                       return (
-                        <Chip key={value} label={role?.name.toLowerCase() || value} size="small" />
+                        <Chip 
+                          key={value} 
+                          label={role?.name.toLowerCase() || value} 
+                          size="small"
+                          onDelete={() => {
+                            const newUserType = formData.userType.filter(type => type !== value);
+                            handleChange('userType', newUserType);
+                          }}
+                        />
                       );
                     })}
                   </Box>
