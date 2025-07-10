@@ -65,6 +65,7 @@ export default function WeeklyScheduleTable({
   const { data: session } = useSession();
   const userPosition = session?.user?.position;
   const userName = session?.user?.name;
+  const isAdmin = userPosition === 'admin';
 
   // 날짜 배열을 일요일부터 토요일 순서로 정렬
   const sortedDates = useMemo(() => {
@@ -75,9 +76,18 @@ export default function WeeklyScheduleTable({
     });
   }, [dates]);
 
+  // admin이 아닌 경우 자신의 스케줄만 필터링
+  const filteredScheduleData = useMemo(() => {
+    if (isAdmin) {
+      return scheduleData;
+    }
+    // admin이 아닌 경우 자신의 스케줄만 표시
+    return scheduleData.filter(user => user.name === userName);
+  }, [scheduleData, isAdmin, userName]);
+
   // 필터링 기능을 custom hook으로 분리
   const filterProps = useWeeklyScheduleFilter({
-    scheduleData,
+    scheduleData: filteredScheduleData, // 필터링된 데이터 사용
     userPosition,
     userName
   });
@@ -251,7 +261,7 @@ export default function WeeklyScheduleTable({
 
   const handleSlotClick = (slot: ShiftSlot, user: UserSchedule, date: string) => {
     // Admin can edit any schedule, Employee can only edit their own
-    if (userPosition === 'employee' && user.name !== userName) {
+    if (!isAdmin && user.name !== userName) {
       return;
     }
 
@@ -281,7 +291,7 @@ export default function WeeklyScheduleTable({
 
   const handleOffClick = (user: UserSchedule, date: string) => {
     // Employee can only add their own schedule
-    if (userPosition === 'employee' && user.name !== userName) {
+    if (!isAdmin && user.name !== userName) {
       return;
     }
     

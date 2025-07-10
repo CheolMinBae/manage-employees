@@ -329,6 +329,12 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
   
+  // 세션 정보 추가
+  const { data: session } = useSession();
+  const userPosition = session?.user?.position;
+  const userName = session?.user?.name;
+  const isAdmin = userPosition === 'admin';
+  
   // 필터링 상태
   const [nameFilter, setNameFilter] = useState('');
   const [userTypeFilter, setUserTypeFilter] = useState<string[]>([]);
@@ -378,6 +384,11 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
 
   // 필터링된 직원 데이터
   const filteredEmployees = (data?.employeeSchedules || []).filter(employee => {
+    // admin이 아닌 경우 자신의 스케줄만 표시
+    if (!isAdmin && employee.name !== userName) {
+      return false;
+    }
+    
     const nameMatch = employee.name.toLowerCase().includes(nameFilter.toLowerCase());
     const userTypeMatch = userTypeFilter.length === 0 || userTypeFilter.includes(employee.userType);
     const companyMatch = !companyFilter || employee.corp === companyFilter;
@@ -741,99 +752,101 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         </Tooltip>
       </Box>
 
-      {/* 필터링 UI */}
-      <Box sx={{ mb: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 'bold' }}>
-          🔍 Filter Employees
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <TextField
-            label="Name"
-            value={nameFilter}
-            onChange={(e) => setNameFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: 200 }}
-            placeholder="Search by name..."
-          />
-          <Autocomplete
-            multiple
-            options={uniqueUserTypes}
-            value={userTypeFilter}
-            onChange={(event, newValue) => setUserTypeFilter(newValue)}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => (
-                <Chip
-                  label={option}
-                  size="small"
-                  {...getTagProps({ index })}
-                />
-              ))
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Position"
-                placeholder="search..."
-                size="small"
-              />
-            )}
-            sx={{ minWidth: 200 }}
-          />
-          <TextField
-            select
-            label="Company"
-            value={companyFilter}
-            onChange={(e) => setCompanyFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: 200 }}
-          >
-            <MenuItem value="">All Companies</MenuItem>
-            {uniqueCompanies.map((company) => (
-              <MenuItem key={company} value={company}>
-                {company}
-              </MenuItem>
-            ))}
-          </TextField>
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Category</InputLabel>
-            <Select
+      {/* 필터링 UI - admin에게만 표시 */}
+      {isAdmin && (
+        <Box sx={{ mb: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 'bold' }}>
+            🔍 Filter Employees
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              label="Name"
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              size="small"
+              sx={{ minWidth: 200 }}
+              placeholder="Search by name..."
+            />
+            <Autocomplete
               multiple
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-              input={<OutlinedInput label="Category" />}
-              renderValue={(selected) => (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {selected.map((value) => (
-                    <Chip key={value} label={value} size="small" />
-                  ))}
-                </Box>
+              options={uniqueUserTypes}
+              value={userTypeFilter}
+              onChange={(event, newValue) => setUserTypeFilter(newValue)}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => (
+                  <Chip
+                    label={option}
+                    size="small"
+                    {...getTagProps({ index })}
+                  />
+                ))
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Position"
+                  placeholder="search..."
+                  size="small"
+                />
               )}
+              sx={{ minWidth: 200 }}
+            />
+            <TextField
+              select
+              label="Company"
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              size="small"
+              sx={{ minWidth: 200 }}
             >
-              {uniqueCategories.map((category) => (
-                <MenuItem key={category} value={category}>
-                  {category}
+              <MenuItem value="">All Companies</MenuItem>
+              {uniqueCompanies.map((company) => (
+                <MenuItem key={company} value={company}>
+                  {company}
                 </MenuItem>
               ))}
-            </Select>
-          </FormControl>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={handleClearFilters}
-            sx={{ height: 40 }}
-          >
-            Clear
-          </Button>
-          <Typography variant="caption" color="text.secondary">
-            Showing {filteredEmployees.length} of {(data?.employeeSchedules || []).length} employees
-            {sortConfig.hour && (
-              <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#1976d2' }}>
-                • Sorted by {formatHourCalifornia(sortConfig.hour)} ({sortConfig.direction === 'desc' ? 'Most working first' : 'Least working first'})
-              </span>
-            )}
-          </Typography>
+            </TextField>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Category</InputLabel>
+              <Select
+                multiple
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                input={<OutlinedInput label="Category" />}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => (
+                      <Chip key={value} label={value} size="small" />
+                    ))}
+                  </Box>
+                )}
+              >
+                {uniqueCategories.map((category) => (
+                  <MenuItem key={category} value={category}>
+                    {category}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleClearFilters}
+              sx={{ height: 40 }}
+            >
+              Clear
+            </Button>
+            <Typography variant="caption" color="text.secondary">
+              Showing {filteredEmployees.length} of {(data?.employeeSchedules || []).length} employees
+              {sortConfig.hour && (
+                <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#1976d2' }}>
+                  • Sorted by {formatHourCalifornia(sortConfig.hour)} ({sortConfig.direction === 'desc' ? 'Most working first' : 'Least working first'})
+                </span>
+              )}
+            </Typography>
+          </Box>
         </Box>
-      </Box>
+      )}
       
       <TableContainer component={Paper}>
         <Table size="small">
@@ -1028,18 +1041,23 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                             sx={{
                               color: status.approved === true ? '#4caf50' : '#ff9800',
                               fontWeight: 'bold',
-                              cursor: 'pointer',
+                              cursor: (isAdmin || employee.name === userName) ? 'pointer' : 'default',
                               fontSize: '0.75rem',
                               px: 0.5,
                               py: 0.25,
                               borderRadius: 1,
-                              '&:hover': {
+                              '&:hover': (isAdmin || employee.name === userName) ? {
                                 backgroundColor: status.approved === true
                                   ? 'rgba(76, 175, 80, 0.1)'
                                   : 'rgba(255, 152, 0, 0.1)'
-                              },
+                              } : {},
                             }}
                             onClick={async () => {
+                              // admin이 아닌 경우 자신의 스케줄만 편집 가능
+                              if (!isAdmin && employee.name !== userName) {
+                                return;
+                              }
+                              
                               setEditDialogInfo({ employee, hour });
                               
                               // 실제 스케줄 데이터 가져오기
@@ -1077,15 +1095,22 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                           </Typography>
                         </Tooltip>
                       ) : (
-                        <Tooltip title="Add shift" placement="top">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleOpenDialog(employee.userId, hour, employee.name)}
-                            sx={{ width: 20, height: 20, color: '#2196f3', '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2' } }}
-                          >
-                            <AddIcon sx={{ fontSize: '0.8rem' }} />
-                          </IconButton>
-                        </Tooltip>
+                        // admin이거나 자신의 스케줄인 경우에만 Add 버튼 표시
+                        (isAdmin || employee.name === userName) ? (
+                          <Tooltip title="Add shift" placement="top">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleOpenDialog(employee.userId, hour, employee.name)}
+                              sx={{ width: 20, height: 20, color: '#2196f3', '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2' } }}
+                            >
+                              <AddIcon sx={{ fontSize: '0.8rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                        ) : (
+                          <Typography variant="caption" sx={{ fontSize: '0.75rem', color: '#ccc' }}>
+                            -
+                          </Typography>
+                        )
                       )}
                     </TableCell>
                   );
