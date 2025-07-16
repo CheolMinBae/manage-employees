@@ -20,9 +20,6 @@ RUN pnpm install
 # 소스 복사
 COPY . .
 
-# DocumentDB SSL 인증서 복사 (로컬에 있는 경우) - 선택적 복사
-RUN if [ -f certs/global-bundle.pem ]; then cp certs/global-bundle.pem ./certs/; fi
-
 # 빌드 인자 받기
 ARG MONGODB_URI
 ARG GOOGLE_CLIENT_ID
