@@ -67,7 +67,7 @@ jobs:
           --exclude ".github" \
           ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
 
-    - name: Create .env file and run docker-compose on EC2
+    - name: Create .env file and run docker compose on EC2
       run: |
         echo "🚀 Deploying application on EC2..."
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
@@ -90,16 +90,16 @@ jobs:
           
           # Docker 컨테이너 중지 및 새로 빌드
           echo "🔄 Stopping existing containers..."
-          docker-compose down
+          docker compose down
           
           echo "🏗️ Building and starting containers..."
-          docker-compose up -d --build web
+          docker compose up -d --build web
           
           # 배포 상태 확인
           sleep 15
           echo "📊 Container status:"
-          docker-compose ps
+          docker compose ps
           
           echo "📋 Recent logs:"
-          docker-compose logs --tail=30 web
+          docker compose logs --tail=30 web
         EOF
