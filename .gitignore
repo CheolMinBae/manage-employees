@@ -15,3 +15,8 @@ node_modules/
 requirements.txt
 *.mongodb.js
 *.mongodb.json
+
+# AWS DocumentDB SSL 인증서
+certs/
+scripts/
+.env

@@ -9,7 +9,14 @@
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "docdb:setup": "chmod +x scripts/download-docdb-cert.sh && ./scripts/download-docdb-cert.sh",
+    "docdb:test": "node scripts/test-docdb-connection.js",
+    "docdb:create": "chmod +x scripts/create-docdb-cluster.sh && ./scripts/create-docdb-cluster.sh",
+    "docdb:delete": "chmod +x scripts/delete-docdb-cluster.sh && ./scripts/delete-docdb-cluster.sh",
+    "docdb:status": "chmod +x scripts/check-docdb-status.sh && ./scripts/check-docdb-status.sh",
+    "docdb:init": "node scripts/init-collections.js",
+    "docdb:seed": "node scripts/seed-database.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",
@@ -35,6 +42,7 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "dayjs": "^1.11.13",
+    "dotenv": "^17.2.0",
     "eslint": "8.46.0",
     "eslint-config-next": "13.4.12",
     "exceljs": "^4.4.0",

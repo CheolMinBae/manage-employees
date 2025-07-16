@@ -5,24 +5,17 @@ services:
     build: 
       context: .
       args:
-        - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/test?authSource=admin
-        - GOOGLE_CLIENT_ID=931144760064-ste62g7v47dlu31b6ljsio5tvsl5ds5n.apps.googleusercontent.com
-        - GOOGLE_CLIENT_SECRET=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
-        - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
-        - NEXTAUTH_URL=http://184.73.144.148/
-        - EMAIL_USER=phone.cheolmin@gmail.com
-        - EMAIL_PASS=lexr pwey woms hxkf
+        - MONGODB_URI=${MONGODB_URI}
+        - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+        - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+        - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+        - NEXTAUTH_URL=${NEXTAUTH_URL}
+        - EMAIL_USER=${EMAIL_USER}
+        - EMAIL_PASS=${EMAIL_PASS}
     ports:
       - "3000:3000"   # EC2에서 로컬 nginx가 포워딩할 대상 포트
-    environment:
-      - MONGODB_URI=mongodb://seedwatercafe:seedwatercafe123!@184.73.144.148:27017/test?authSource=admin
-      - NODE_ENV=production
-      - GOOGLE_CLIENT_ID=931144760064-ste62g7v47dlu31b6ljsio5tvsl5ds5n.apps.googleusercontent.com
-      - GOOGLE_CLIENT_SECRET=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
-      - NEXTAUTH_SECRET=QG1xFbU6w1fPxePy3GskmZK9Tpb8TxgqvuOMRccqJgo=
-      - NEXTAUTH_URL=http://184.73.144.148/
-      - EMAIL_USER=phone.cheolmin@gmail.com
-      - EMAIL_PASS=lexr pwey woms hxkf
+    env_file:
+      - .env
     networks:
       - app-network
     extra_hosts:
