@@ -11,6 +11,7 @@ services:
         - EMAIL_USER=${EMAIL_USER}
         - EMAIL_PASS=${EMAIL_PASS}
     ports:
+      - "80:3000"     # 외부 80포트를 컨테이너 3000포트로 매핑
       - "3000:3000"   # EC2에서 로컬 nginx가 포워딩할 대상 포트
     env_file:
       - .env
