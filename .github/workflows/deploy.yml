@@ -40,18 +40,27 @@ jobs:
           echo "❌ SSH key format is invalid"
           echo "First few lines of key file:"
           head -n 3 ~/.ssh/deploy_key
+          echo "File size: $(wc -c < ~/.ssh/deploy_key) bytes"
           exit 1
         fi
         
         echo "✅ SSH key decoded and validated successfully"
         ls -la ~/.ssh/deploy_key
+        echo "Key file first line: $(head -n 1 ~/.ssh/deploy_key)"
         
         # Known hosts 추가
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+    - name: Test SSH connection
+      run: |
+        echo "🔍 Testing SSH connection to EC2..."
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+          ubuntu@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
+
     - name: Sync project files to EC2
       run: |
-        rsync -az \
+        echo "📁 Syncing project files to EC2..."
+        rsync -avz \
           -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
           --exclude ".git" \
           --exclude "node_modules" \
@@ -60,6 +69,7 @@ jobs:
 
     - name: Create .env file and run docker-compose on EC2
       run: |
+        echo "🚀 Deploying application on EC2..."
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
           cd /home/ubuntu/manage-employees
           
@@ -76,13 +86,20 @@ jobs:
         ENVEOF
           
           echo "✅ .env file created"
+          ls -la .env
           
           # Docker 컨테이너 중지 및 새로 빌드
+          echo "🔄 Stopping existing containers..."
           docker-compose down
+          
+          echo "🏗️ Building and starting containers..."
           docker-compose up -d --build web
           
           # 배포 상태 확인
-          sleep 10
+          sleep 15
+          echo "📊 Container status:"
           docker-compose ps
-          docker-compose logs --tail=20 web
+          
+          echo "📋 Recent logs:"
+          docker-compose logs --tail=30 web
         EOF
