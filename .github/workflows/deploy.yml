@@ -38,6 +38,8 @@ jobs:
         # SSH 키 형식 검증
         if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/deploy_key; then
           echo "❌ SSH key format is invalid"
+          echo "First few lines of key file:"
+          head -n 3 ~/.ssh/deploy_key
           exit 1
         fi
         
@@ -50,7 +52,7 @@ jobs:
     - name: Sync project files to EC2
       run: |
         rsync -az \
-          -e "ssh -i ~/.ssh/deploy_key" \
+          -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
           --exclude ".git" \
           --exclude "node_modules" \
           --exclude ".github" \
@@ -58,7 +60,7 @@ jobs:
 
     - name: Create .env file and run docker-compose on EC2
       run: |
-        ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
           cd /home/ubuntu/manage-employees
           
           # .env 파일 생성
