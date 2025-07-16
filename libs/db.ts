@@ -25,7 +25,7 @@ const getSSLOptions = () => {
       tls: true,
       tlsCAFile: certPath,
       tlsAllowInvalidCertificates: false,
-      tlsAllowInvalidHostnames: false,
+      tlsAllowInvalidHostnames: true, // DocumentDB는 이것을 true로 설정해야 함
     };
   }
 
@@ -50,6 +50,11 @@ export default async function dbConnect() {
       ...sslOptions,
       retryWrites: false, // DocumentDB에서는 retryWrites를 false로 설정
       bufferCommands: false,
+      directConnection: false, // DocumentDB 클러스터용
+      readPreference: 'primaryPreferred', // DocumentDB 권장 설정
+      maxPoolSize: 10, // 연결 풀 크기 제한
+      serverSelectionTimeoutMS: 5000, // 서버 선택 타임아웃
+      socketTimeoutMS: 45000, // 소켓 타임아웃
     });
   }
 
