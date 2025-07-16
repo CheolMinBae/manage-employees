@@ -22,8 +22,29 @@ jobs:
     - name: Setup SSH key from base64
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/deploy_key
+        
+        # SSH 키 디코딩 및 검증
+        echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 --decode > ~/.ssh/deploy_key
+        
+        # 파일 권한 설정
         chmod 600 ~/.ssh/deploy_key
+        
+        # SSH 키 파일 검증
+        if [ ! -s ~/.ssh/deploy_key ]; then
+          echo "❌ SSH key file is empty or not created"
+          exit 1
+        fi
+        
+        # SSH 키 형식 검증
+        if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/deploy_key; then
+          echo "❌ SSH key format is invalid"
+          exit 1
+        fi
+        
+        echo "✅ SSH key decoded and validated successfully"
+        ls -la ~/.ssh/deploy_key
+        
+        # Known hosts 추가
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
     - name: Sync project files to EC2
@@ -35,10 +56,31 @@ jobs:
           --exclude ".github" \
           ./ ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/manage-employees/
 
-    - name: Run docker-compose on EC2 (web only)
+    - name: Create .env file and run docker-compose on EC2
       run: |
         ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
           cd /home/ubuntu/manage-employees
+          
+          # .env 파일 생성
+          cat > .env << 'ENVEOF'
+        MONGODB_URI=${{ secrets.MONGODB_URI }}
+        NODE_ENV=production
+        GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+        GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+        NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+        NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}
+        EMAIL_USER=${{ secrets.EMAIL_USER }}
+        EMAIL_PASS=${{ secrets.EMAIL_PASS }}
+        ENVEOF
+          
+          echo "✅ .env file created"
+          
+          # Docker 컨테이너 중지 및 새로 빌드
           docker-compose down
           docker-compose up -d --build web
+          
+          # 배포 상태 확인
+          sleep 10
+          docker-compose ps
+          docker-compose logs --tail=20 web
         EOF
