@@ -2,7 +2,7 @@
 
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Typography, Paper, Box, Chip, Stack, IconButton, Button
+  Typography, Paper, Box, Chip, Stack, IconButton, Button, TableSortLabel
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -12,12 +12,12 @@ import { useMemo, useState, useEffect } from 'react';
 import dayjs, { Dayjs } from 'dayjs';
 import { format, parseISO } from 'date-fns';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import ApprovalDialog from '@/app/(DashboardLayout)/components/approve/ApprovalDialog';
-import EditShiftDialog from '@/app/(DashboardLayout)/components/schedule/EditShiftDialog';
-import AddShiftDialog from '@/app/(DashboardLayout)/components/schedule/AddShiftDialog';
-import SimpleAddShiftDialog from '@/app/(DashboardLayout)/components/schedule/SimpleAddShiftDialog';
-import { useWeeklyScheduleFilter } from '@/app/(DashboardLayout)/hooks/useWeeklyScheduleFilter';
-import Filter from '@/app/(DashboardLayout)/components/dashboard/weeklyschedule/Filter';
+import ApprovalDialog from '../approve/ApprovalDialog';
+import EditShiftDialog from '../schedule/EditShiftDialog';
+import AddShiftDialog from '../schedule/AddShiftDialog';
+import SimpleAddShiftDialog from '../schedule/SimpleAddShiftDialog';
+import { useWeeklyScheduleFilter } from '../../hooks/useWeeklyScheduleFilter';
+import Filter from './weeklyschedule/Filter';
 
 interface ShiftSlot {
   _id: string;
@@ -431,8 +431,25 @@ export default function WeeklyScheduleTable({
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell><strong>Name</strong></TableCell>
-              <TableCell><strong>Position</strong></TableCell>
+              <TableCell align="center" sx={{ width: '50px' }}><strong>No.</strong></TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={filterProps.sortField === 'name'}
+                  direction={filterProps.sortField === 'name' ? filterProps.sortDirection : 'asc'}
+                  onClick={() => filterProps.handleSort('name')}
+                >
+                  <strong>Name</strong>
+                </TableSortLabel>
+              </TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={filterProps.sortField === 'position'}
+                  direction={filterProps.sortField === 'position' ? filterProps.sortDirection : 'asc'}
+                  onClick={() => filterProps.handleSort('position')}
+                >
+                  <strong>Position</strong>
+                </TableSortLabel>
+              </TableCell>
               {sortedDates.map((date) => (
                 <TableCell
                   key={date}
@@ -451,6 +468,7 @@ export default function WeeklyScheduleTable({
           <TableBody>
             {/* 🔶 요일과 직원 스케줄 사이에 표시되는 합계 줄들 */}
             <TableRow>
+              <TableCell />
               <TableCell sx={{ pt: 1, fontWeight: 700, color: 'text.secondary' }}>PENDING</TableCell>
               <TableCell />
               {sortedDates.map(date => (
@@ -469,6 +487,7 @@ export default function WeeklyScheduleTable({
             </TableRow>
 
             <TableRow>
+              <TableCell />
               <TableCell sx={{ pb: 1, fontWeight: 700, color: 'text.secondary' }}>APPROVED</TableCell>
               <TableCell />
               {sortedDates.map(date => (
@@ -489,6 +508,9 @@ export default function WeeklyScheduleTable({
 
             {filterProps.filteredData.map((user, i) => (
               <TableRow key={`${user.name}-${i}`}>
+                <TableCell align="center">
+                  <Typography variant="body2" color="text.secondary">{i + 1}</Typography>
+                </TableCell>
                 <TableCell>
                   <Typography fontWeight="bold">{user.name}</Typography>
                   <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">

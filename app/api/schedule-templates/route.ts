@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
-import ScheduleTemplate from '../../../../models/ScheduleTemplate';
+import ScheduleTemplate from '@models/ScheduleTemplate';
 
 export const dynamic = 'force-dynamic';
 

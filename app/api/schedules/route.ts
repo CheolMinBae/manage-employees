@@ -407,6 +407,11 @@ export async function POST(req: NextRequest) {
     await dbConnect();
     const data = await req.json();
 
+    // userType 기본값 설정
+    if (!data.userType) {
+      data.userType = 'Barista';
+    }
+
     // 필수 필드 검증
     if (!data.userId || !data.date || !data.start || !data.end) {
       return NextResponse.json(

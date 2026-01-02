@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import Email from '../../../../models/Email';
+import Email from '@models/Email';
 
 export const dynamic = 'force-dynamic';
 

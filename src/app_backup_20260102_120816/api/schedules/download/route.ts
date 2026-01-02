@@ -84,12 +84,6 @@ export async function GET(req: NextRequest) {
     // 사용자 정보를 매핑합니다
     const users: { [key: string]: UserInfo } = {};
     usersRaw.forEach((user: any) => {
-      console.log('User data from DB:', {
-        name: user.name,
-        userType: user.userType,
-        position: user.position
-      });
-      
       users[(user._id as any).toString()] = {
         _id: (user._id as any).toString(),
         name: user.name,
@@ -115,6 +109,7 @@ export async function GET(req: NextRequest) {
 
     // 열 너비 설정
     worksheet.columns = [
+      { header: 'No', width: 6 },
       { header: 'Corp', width: 15 },
       { header: 'EID', width: 10 },
       { header: 'Name', width: 20 },
@@ -124,7 +119,7 @@ export async function GET(req: NextRequest) {
     ];
 
     // 헤더 행 추가
-    worksheet.mergeCells('A1:L1');
+    worksheet.mergeCells('A1:M1');
     const titleCell = worksheet.getCell('A1');
     titleCell.value = '근무스케줄';
     titleCell.alignment = {
@@ -140,7 +135,7 @@ export async function GET(req: NextRequest) {
     // 날짜 헤더 행
     const dateRow = worksheet.getRow(2);
     dates.forEach((date, index) => {
-      const cell = dateRow.getCell(index + 6);
+      const cell = dateRow.getCell(index + 7);
       // 직접 문자열에서 날짜 포맷팅
       const dateStr = weekDates[index]; // 원본 문자열 사용
       const dateObj = new Date(dateStr + 'T00:00:00'); // 로컬 시간으로 파싱
@@ -161,7 +156,7 @@ export async function GET(req: NextRequest) {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayRow = worksheet.getRow(3);
     dayNames.forEach((day, index) => {
-      const cell = dayRow.getCell(index + 6);
+      const cell = dayRow.getCell(index + 7);
       cell.value = day;
       cell.alignment = {
         horizontal: 'center',
@@ -176,7 +171,7 @@ export async function GET(req: NextRequest) {
 
     // 기본 헤더 스타일 적용
     const headerRow = worksheet.getRow(3);
-    headerRow.values = ['Corp', 'EID', 'Name', 'Category', 'Position', ...dayNames];
+    headerRow.values = ['No', 'Corp', 'EID', 'Name', 'Category', 'Position', ...dayNames];
     headerRow.font = {
       name: 'Arial',
       size: 10,
@@ -188,7 +183,7 @@ export async function GET(req: NextRequest) {
     };
 
     // Name 헤더 셀 특별 강조
-    const nameHeaderCell = headerRow.getCell(3);
+    const nameHeaderCell = headerRow.getCell(4);
     nameHeaderCell.fill = {
       type: 'pattern',
       pattern: 'solid',
@@ -213,18 +208,24 @@ export async function GET(req: NextRequest) {
         return;
       }
 
+      // No 컬럼 (번호)
+      const noCell = row.getCell(1);
+      noCell.value = index + 1;
+      noCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      noCell.font = { name: 'Arial', size: 10 };
+
       // 기본 정보 설정
-      const corpCell = row.getCell(1);
+      const corpCell = row.getCell(2);
       corpCell.value = user.corp || '';
       corpCell.alignment = { horizontal: 'center', vertical: 'middle' };
       corpCell.font = { name: 'Arial', size: 10 };
 
-      const eidCell = row.getCell(2);
+      const eidCell = row.getCell(3);
       eidCell.value = user.eid || '';
       eidCell.alignment = { horizontal: 'center', vertical: 'middle' };
       eidCell.font = { name: 'Arial', size: 10 };
 
-      const nameCell = row.getCell(3);
+      const nameCell = row.getCell(4);
       nameCell.value = user.name;
       nameCell.alignment = { horizontal: 'center', vertical: 'middle' };
       nameCell.font = { name: 'Arial', size: 10, bold: true };
@@ -234,20 +235,12 @@ export async function GET(req: NextRequest) {
         fgColor: { argb: 'FFF0F8FF' } // 매우 연한 파란색 배경
       };
 
-      const categoryCell = row.getCell(4);
+      const categoryCell = row.getCell(5);
       categoryCell.value = user.category || '';
       categoryCell.alignment = { horizontal: 'center', vertical: 'middle' };
       categoryCell.font = { name: 'Arial', size: 10 };
 
-      const positionCell = row.getCell(5);
-      console.log('Setting position cell for user:', {
-        name: user.name,
-        userType: user.userType,
-        position: user.position,
-        isArray: Array.isArray(user.userType),
-        hasLength: user.userType && user.userType.length > 0
-      });
-      
+      const positionCell = row.getCell(6);
       positionCell.value = Array.isArray(user.userType) && user.userType.length > 0 
         ? user.userType.join(', ') 
         : String(user.userType || '');
@@ -261,7 +254,7 @@ export async function GET(req: NextRequest) {
           s => s.userId.toString() === userId && s.date === dateStr
         );
 
-        const cell = row.getCell(dayIndex + 6);
+        const cell = row.getCell(dayIndex + 7);
         
         if (daySchedules.length === 0) {
           // OFF인 경우
@@ -275,7 +268,7 @@ export async function GET(req: NextRequest) {
           const scheduleItems = daySchedules
             .sort((a, b) => a.start.localeCompare(b.start))
             .map(s => {
-              const timeText = `${s.start}–${s.end}`;
+              const timeText = `${s.start}-${s.end}`;
               // pending 상태인 경우 (P) 표시 추가
               return s.approved ? timeText : `${timeText}`;
             });

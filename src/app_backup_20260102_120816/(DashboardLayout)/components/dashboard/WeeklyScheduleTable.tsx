@@ -2,7 +2,7 @@
 
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Typography, Paper, Box, Chip, Stack, IconButton, Button
+  Typography, Paper, Box, Chip, Stack, IconButton, Button, TableSortLabel
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -69,6 +69,7 @@ export default function WeeklyScheduleTable({
 
   // 날짜 배열을 일요일부터 토요일 순서로 정렬
   const sortedDates = useMemo(() => {
+    if (!dates || !Array.isArray(dates)) return [];
     return [...dates].sort((a, b) => {
       const dateA = parseISO(a);
       const dateB = parseISO(b);
@@ -274,7 +275,7 @@ export default function WeeklyScheduleTable({
       start: slot.start,
       end: slot.end,
       approved: slot.status === 'approved',
-      userType: 'Barista', // 임시 기본값
+      userType: Array.isArray(user.position) ? user.position[0] : (user.position || 'Barista'),
     });
 
     if (slot.status === 'pending') {
@@ -296,11 +297,16 @@ export default function WeeklyScheduleTable({
     }
     
     // 사용자 정보를 SimpleAddShiftDialog 형식으로 변환
+    // position을 userType으로 변환 (기본값 'Barista' 보장)
+    const userTypeValue = Array.isArray(user.position) 
+      ? (user.position[0] || 'Barista') 
+      : (user.position || 'Barista');
+    
     const userInfo = {
       _id: user.userId,
       name: user.name,
-      userType: Array.isArray(user.position) ? user.position[0] : (user.position || 'Employee'), // position을 userType으로 사용
-      position: Array.isArray(user.position) ? user.position.join(', ') : (user.position || 'Employee'),
+      userType: userTypeValue,
+      position: Array.isArray(user.position) ? user.position.join(', ') : (user.position || 'Barista'),
     };
     
     setSelectedDateInfo({
@@ -320,9 +326,15 @@ export default function WeeklyScheduleTable({
     if (!selectedDateInfo || !startTime || !endTime) return;
 
     try {
+      // 해당 사용자의 position 찾기
+      const targetUser = scheduleData.find(u => u.userId === selectedDateInfo.userId);
+      const userType = targetUser 
+        ? (Array.isArray(targetUser.position) ? targetUser.position[0] : (targetUser.position || 'Barista'))
+        : 'Barista';
+      
       const newSchedule = {
         userId: selectedDateInfo.userId,
-        userType: 'Barista', // 임시 기본값
+        userType: userType,
         date: selectedDateInfo.date,
         start: startTime.format('HH:mm'),
         end: endTime.format('HH:mm'),
@@ -558,8 +570,25 @@ export default function WeeklyScheduleTable({
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell><strong>Name</strong></TableCell>
-              <TableCell><strong>Position</strong></TableCell>
+              <TableCell align="center" sx={{ width: '50px' }}><strong>No.</strong></TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={filterProps.sortField === 'name'}
+                  direction={filterProps.sortField === 'name' ? filterProps.sortDirection : 'asc'}
+                  onClick={() => filterProps.handleSort('name')}
+                >
+                  <strong>Name</strong>
+                </TableSortLabel>
+              </TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={filterProps.sortField === 'position'}
+                  direction={filterProps.sortField === 'position' ? filterProps.sortDirection : 'asc'}
+                  onClick={() => filterProps.handleSort('position')}
+                >
+                  <strong>Position</strong>
+                </TableSortLabel>
+              </TableCell>
               {sortedDates.map((date) => (
                 <TableCell key={date} align="center">
                   <strong>{formatDateHeader(date)}</strong>
@@ -571,6 +600,9 @@ export default function WeeklyScheduleTable({
           <TableBody>
             {filterProps.filteredData.map((user, i) => (
               <TableRow key={`${user.name}-${i}`}>
+                <TableCell align="center">
+                  <Typography variant="body2" color="text.secondary">{i + 1}</Typography>
+                </TableCell>
                 <TableCell>
                   <Typography fontWeight="bold">{user.name}</Typography>
                   <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">

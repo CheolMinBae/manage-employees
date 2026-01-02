@@ -256,7 +256,7 @@ export default function ScheduleApprovalPage() {
 
         <Grid container spacing={3} sx={{ height: 'calc(100vh - 300px)' }}>
           <Grid item xs={12} md={4}>
-            <Paper sx={{ height: '100%', overflow: 'auto' }}>
+            <Paper sx={{ height: 800, overflow: 'auto' }}>
               <Box p={2}>
                 <Typography variant="h6" mb={2}>👥 Users ({Object.keys(allUsersGrouped).length})</Typography>
                 <Stack spacing={1}>

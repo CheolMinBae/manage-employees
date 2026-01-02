@@ -463,7 +463,7 @@ const ApprovalDialog = ({
             </Typography>
           </Box>
         ) : (
-          <Box sx={{ mt: 3 }}>
+          <Box sx={{ mt: 3, height: 800, overflow: 'auto' }}>
                          {userRoles.map((role) => {
                const schedules = allSchedulesByUserType[role.name] || [];
                return (

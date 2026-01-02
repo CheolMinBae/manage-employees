@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 
 export type FilterType = 'name' | 'corp' | 'category' | 'eid' | 'position';
+export type SortField = 'name' | 'corp' | 'eid' | 'category' | 'position';
+export type SortDirection = 'asc' | 'desc';
 
 interface UserSchedule {
   userId: string;
@@ -25,6 +27,8 @@ interface UseWeeklyScheduleFilterReturn {
   selectedNames: string[];
   selectedPositions: string[];
   trigger: number;
+  sortField: SortField;
+  sortDirection: SortDirection;
   
   // Computed values
   uniqueNames: string[];
@@ -40,6 +44,7 @@ interface UseWeeklyScheduleFilterReturn {
   handleClear: () => void;
   handleFilterTypeChange: (type: FilterType) => void;
   handleKeywordKeyDown: (e: React.KeyboardEvent) => void;
+  handleSort: (field: SortField) => void;
 }
 
 export const useWeeklyScheduleFilter = ({
@@ -52,6 +57,8 @@ export const useWeeklyScheduleFilter = ({
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [trigger, setTrigger] = useState(0);
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   // 고유한 이름 목록 생성
   const uniqueNames = useMemo(() => {
@@ -68,30 +75,53 @@ export const useWeeklyScheduleFilter = ({
 
   // 필터링된 데이터
   const filteredData = useMemo(() => {
-    const filtered = scheduleData;
+    let filtered = [...scheduleData];
     
     // Name 필터의 경우 멀티선택 사용
     if (filterType === 'name') {
-      if (selectedNames.length === 0) return filtered;
-      return filtered.filter((u) => selectedNames.includes(u.name));
+      if (selectedNames.length > 0) {
+        filtered = filtered.filter((u) => selectedNames.includes(u.name));
+      }
     }
-    
     // Position 필터의 경우 멀티선택 사용
-    if (filterType === 'position') {
-      if (selectedPositions.length === 0) return filtered;
-      return filtered.filter((u) => {
-        const userPositions = Array.isArray(u.position) ? u.position : [u.position];
-        return selectedPositions.some(pos => userPositions.includes(pos));
+    else if (filterType === 'position') {
+      if (selectedPositions.length > 0) {
+        filtered = filtered.filter((u) => {
+          const userPositions = Array.isArray(u.position) ? u.position : [u.position];
+          return selectedPositions.some(pos => userPositions.includes(pos));
+        });
+      }
+    }
+    // 다른 필터의 경우 기존 키워드 검색 사용
+    else if (keyword.trim()) {
+      filtered = filtered.filter((u) => {
+        const target = String(u[filterType]).toLowerCase();
+        return target.includes(keyword.trim().toLowerCase());
       });
     }
     
-    // 다른 필터의 경우 기존 키워드 검색 사용
-    if (!keyword.trim()) return filtered;
-    return filtered.filter((u) => {
-      const target = String(u[filterType]).toLowerCase();
-      return target.includes(keyword.trim().toLowerCase());
+    // 소팅 적용
+    filtered.sort((a, b) => {
+      let aValue: string;
+      let bValue: string;
+      
+      if (sortField === 'position') {
+        aValue = Array.isArray(a.position) ? a.position.join(', ') : String(a.position || '');
+        bValue = Array.isArray(b.position) ? b.position.join(', ') : String(b.position || '');
+      } else {
+        aValue = String(a[sortField] || '').toLowerCase();
+        bValue = String(b[sortField] || '').toLowerCase();
+      }
+      
+      if (sortDirection === 'asc') {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
     });
-  }, [scheduleData, filterType, keyword, selectedNames, selectedPositions, userPosition, userName, trigger]);
+    
+    return filtered;
+  }, [scheduleData, filterType, keyword, selectedNames, selectedPositions, userPosition, userName, trigger, sortField, sortDirection]);
 
   // 핸들러들
   const handleSearch = () => {
@@ -120,6 +150,17 @@ export const useWeeklyScheduleFilter = ({
     }
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // 같은 필드를 클릭하면 방향 토글
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // 다른 필드를 클릭하면 해당 필드로 변경하고 asc로 초기화
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
   return {
     // States
     filterType,
@@ -127,6 +168,8 @@ export const useWeeklyScheduleFilter = ({
     selectedNames,
     selectedPositions,
     trigger,
+    sortField,
+    sortDirection,
     
     // Computed values
     uniqueNames,
@@ -142,5 +185,6 @@ export const useWeeklyScheduleFilter = ({
     handleClear,
     handleFilterTypeChange,
     handleKeywordKeyDown,
+    handleSort,
   };
 }; 

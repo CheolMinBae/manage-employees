@@ -187,7 +187,7 @@ export default function SimpleAddShiftDialog({
   };
 
   const handleManualSubmit = async () => {
-    if (!selectedDate || !startTime || !endTime || !userInfo) return;
+    if (!selectedDate || !startTime || !endTime) return;
 
     try {
       const newSchedule = {
@@ -195,7 +195,7 @@ export default function SimpleAddShiftDialog({
         date: selectedDate.format('YYYY-MM-DD'),
         start: startTime.format('HH:mm'),
         end: endTime.format('HH:mm'),
-        userType: userInfo.userType, // userType 추가
+        userType: userInfo?.userType || 'Barista', // userType 추가 (기본값 보장)
         approved: isAdmin ? true : false, // Admin이 추가하면 자동 승인
       };
 

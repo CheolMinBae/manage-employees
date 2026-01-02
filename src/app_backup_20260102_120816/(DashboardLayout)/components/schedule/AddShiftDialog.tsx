@@ -30,12 +30,19 @@ import { useEffect, useState, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useSession } from 'next-auth/react';
 
+interface WorkSession {
+  start: Dayjs | null;
+  end: Dayjs | null;
+}
+
 interface SlotForm {
   id: string;
   date: Dayjs | null;
   start: Dayjs | null;
   end: Dayjs | null;
   selectedTemplate?: string;
+  isSplit?: boolean;
+  splitSessions?: WorkSession[];
 }
 
 interface ExistingShift {
@@ -330,7 +337,46 @@ export default function AddShiftDialog({
 
   const handleSlotChange = (id: string, field: keyof Omit<SlotForm, 'id'>, value: Dayjs | null) => {
     setSlotForms((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, [field]: value } : slot))
+      prev.map((slot) => (slot.id === id ? { ...slot, [field]: value, isSplit: false, splitSessions: undefined } : slot))
+    );
+  };
+
+  // 6시간 이상 근무 시 분할 필요 여부 확인
+  const needsSplit = (slot: SlotForm) => {
+    if (!slot.start || !slot.end) return false;
+    const duration = slot.end.diff(slot.start, 'hour', true);
+    return duration >= 6;
+  };
+
+  // 자동 분할 처리
+  const handleSplitSlot = (id: string) => {
+    setSlotForms((prev) =>
+      prev.map((slot) => {
+        if (slot.id !== id || !slot.start || !slot.end) return slot;
+        
+        const totalDuration = slot.end.diff(slot.start, 'minute');
+        const breakStart = slot.start.add(totalDuration / 2 - 15, 'minute');
+        const breakEnd = breakStart.add(30, 'minute');
+        
+        return {
+          ...slot,
+          isSplit: true,
+          splitSessions: [
+            { start: slot.start, end: breakStart },
+            { start: breakEnd, end: slot.end }
+          ]
+        };
+      })
+    );
+  };
+
+  // 분할 취소
+  const handleCombineSlot = (id: string) => {
+    setSlotForms((prev) =>
+      prev.map((slot) => {
+        if (slot.id !== id) return slot;
+        return { ...slot, isSplit: false, splitSessions: undefined };
+      })
     );
   };
 
@@ -407,16 +453,37 @@ export default function AddShiftDialog({
       return;
     }
 
-    const formatted = slotForms.map((slot) => ({
-      date: slot.date?.format('YYYY-MM-DD') ?? '',
-      start: slot.start?.format('HH:mm') ?? '',
-      end: slot.end?.format('HH:mm') ?? '',
-      userId,
-      userType: selectedUserType,
-    }));
+    // 분할된 슬롯과 일반 슬롯을 구분하여 처리
+    const allEntries: { date: string; start: string; end: string; userId: string; userType: string }[] = [];
+    
+    slotForms.forEach((slot) => {
+      if (slot.isSplit && slot.splitSessions && slot.splitSessions.length === 2) {
+        // 분할된 슬롯: 두 개의 스케줄 생성
+        slot.splitSessions.forEach((session) => {
+          if (session.start && session.end) {
+            allEntries.push({
+              date: slot.date?.format('YYYY-MM-DD') ?? '',
+              start: session.start.format('HH:mm'),
+              end: session.end.format('HH:mm'),
+              userId,
+              userType: selectedUserType,
+            });
+          }
+        });
+      } else {
+        // 일반 슬롯
+        allEntries.push({
+          date: slot.date?.format('YYYY-MM-DD') ?? '',
+          start: slot.start?.format('HH:mm') ?? '',
+          end: slot.end?.format('HH:mm') ?? '',
+          userId,
+          userType: selectedUserType,
+        });
+      }
+    });
 
     await Promise.all(
-      formatted.map((entry) =>
+      allEntries.map((entry) =>
         fetch('/api/schedules', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -545,13 +612,37 @@ export default function AddShiftDialog({
                       />
                     </Grid>
                   </Grid>
-                  {/* {existingForDate.length > 0 && (
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Existing schedules for {slot.date?.format('YYYY-MM-DD')}: {existingForDate.map(s => `${s.start}-${s.end}`).join(', ')}
-                      </Typography>
+                  
+                  {/* 6시간 이상일 때 분할 옵션 표시 */}
+                  {needsSplit(slot) && (
+                    <Box sx={{ mt: 2 }}>
+                      <Button
+                        variant={slot.isSplit ? "outlined" : "contained"}
+                        size="small"
+                        onClick={() => slot.isSplit ? handleCombineSlot(slot.id) : handleSplitSlot(slot.id)}
+                        fullWidth
+                      >
+                        {slot.isSplit ? "Combine Sessions (Remove Break)" : "Split Sessions (Add 30min Break)"}
+                      </Button>
+                      
+                      {slot.isSplit && slot.splitSessions && (
+                        <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                          <Typography variant="subtitle2" gutterBottom>
+                            Split Sessions:
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Session 1: {slot.splitSessions[0]?.start?.format('HH:mm')} - {slot.splitSessions[0]?.end?.format('HH:mm')}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Break: {slot.splitSessions[0]?.end?.format('HH:mm')} - {slot.splitSessions[1]?.start?.format('HH:mm')} (30 min)
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Session 2: {slot.splitSessions[1]?.start?.format('HH:mm')} - {slot.splitSessions[1]?.end?.format('HH:mm')}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
-                  )} */}
+                  )}
                 </div>
               );
             })}

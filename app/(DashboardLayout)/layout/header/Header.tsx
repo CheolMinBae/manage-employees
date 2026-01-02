@@ -81,7 +81,7 @@ const Header = ({ toggleMobileSidebar }: ItemType) => {
                 {session.user?.name || session.user?.email}
               </Typography>
               <Avatar src={session.user?.image || undefined} alt="avatar" sx={{ width: 32, height: 32 }} />
-              <Button variant="outlined" size="small" onClick={() => signOut()}>
+              <Button variant="outlined" size="small" onClick={() => signOut({ callbackUrl: '/authentication/login' })}>
                 Logout
               </Button>
             </>

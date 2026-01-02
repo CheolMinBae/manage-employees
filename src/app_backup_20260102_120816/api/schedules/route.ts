@@ -163,6 +163,28 @@ export async function GET(req: NextRequest) {
       );
 
       const scheduleMap: Record<string, any> = {};
+      
+      // 먼저 모든 active 사용자를 포함 (스케줄 없는 사용자도 표시)
+      const allActiveUsers = await SignupUser.find({ 
+        status: { $ne: 'deleted' } 
+      }).select('_id name corp eid category position userType').lean();
+      
+      allActiveUsers.forEach((user: any) => {
+        const userId = user._id.toString();
+        scheduleMap[userId] = {
+          userId: userId,
+          name: user.name,
+          position: Array.isArray(user.userType) && user.userType.length > 0 
+            ? user.userType 
+            : (user.userType || 'Employee'),
+          corp: user.corp || '',
+          eid: user.eid || '',
+          category: user.category || '',
+          shifts: [],
+        };
+      });
+      
+      // 스케줄 데이터 추가
       filtered.forEach((s) => {
         const status =
           s.approved === true
@@ -211,8 +233,8 @@ export async function GET(req: NextRequest) {
         weekDates.push(format(d, 'yyyy-MM-dd'));
       }
 
-      const weekTitle = `Week of ${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d')}`;
-      const weekRange = `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d')}`;
+      const weekTitle = `Week of ${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d')}`;
+      const weekRange = `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d')}`;
 
       return NextResponse.json({
         weekTitle,
@@ -237,10 +259,15 @@ export async function POST(req: NextRequest) {
     await dbConnect();
     const data = await req.json();
     
+    // userType 기본값 설정
+    if (!data.userType) {
+      data.userType = 'Barista';
+    }
+    
     // 필수 필드 검증
-    if (!data.userId || !data.userType || !data.date || !data.start || !data.end) {
+    if (!data.userId || !data.date || !data.start || !data.end) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, userType, date, start, end' },
+        { error: 'Missing required fields: userId, date, start, end' },
         { status: 400 }
       );
     }
