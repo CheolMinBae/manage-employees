@@ -221,7 +221,7 @@ export default function WeeklyScheduleTable({
     filterProps.filteredData.forEach(user => {
       user.shifts.forEach(day => {
         if (!totals[day.date]) return; // 주차 범위 밖이면 무시
-        day.slots.forEach(slot => {
+        day.slots.forEach((slot: ShiftSlot) => {
           const mins = diffMinutes(slot.start, slot.end);
           if (slot.status === 'pending') totals[day.date].pending += mins;
           if (slot.status === 'approved') totals[day.date].approved += mins;

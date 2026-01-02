@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Grid, Box, Tabs, Tab } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import PageContainer from '@/app/(DashboardLayout)/components/container/PageContainer';
-import WeeklyScheduleTable from './components/dashboard/WeeklyScheduleTable.tsx';
+import WeeklyScheduleTable from './components/dashboard/WeeklyScheduleTable';
 import HourlyStaffingTable from './components/dashboard/HourlyStaffingTable';
 import { useProtectedSession } from './hooks/useProtectedSession';
 import { startOfWeek, format } from 'date-fns';

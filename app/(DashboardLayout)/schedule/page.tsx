@@ -71,7 +71,7 @@ export default function ScheduleRegisterPage() {
   const [corporation, setCorporation] = useState<CorporationSettings | null>(null);
 
   const userId = session?.user?.id as string;
-  const corporationId = session?.user?.corporationId as string;
+  const corporationId = (session?.user as any)?.corporationId as string;
 
   /* =========================
      회사 설정 가져오기

@@ -180,7 +180,7 @@ function isTimeOverlappingBW(
   // 기존 데이터가 잘못된 경우도 있을 수 있으니, 그 경우는 overlap 판단에서 제외
   if (!v1.ok || !v2.ok) return false;
 
-  return v1.startMin < v2.endMin && v2.startMin < v1.endMin;
+  return v1.startMin! < v2.endMin! && v2.startMin! < v1.endMin!;
 }
 
 // 중복 스케줄 검사 함수 (영업일 기준)

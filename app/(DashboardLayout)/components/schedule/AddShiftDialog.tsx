@@ -188,19 +188,19 @@ export default function AddShiftDialog({
   // TimePicker shouldDisableTime (Start/End 분리)
   const makeShouldDisableTime =
     (slotId: string, kind: 'start' | 'end') =>
-    (value: number, view: 'hours' | 'minutes' | 'seconds') => {
+    (value: Dayjs, view: 'hours' | 'minutes' | 'seconds') => {
       const slot = slotForms.find(s => s.id === slotId);
 
       if (view === 'hours') {
         // hours view에서는 minute=0 기준으로 판단 (경계시간 처리 포함)
-        const hour = value;
+        const hour = value.hour();
         return kind === 'start'
           ? !isAllowedStart(hour, 0)
           : !isAllowedEnd(hour, 0);
       }
 
       if (view === 'minutes') {
-        const minute = value;
+        const minute = value.minute();
         const hour =
           kind === 'start'
             ? (slot?.start?.hour() ?? 0)

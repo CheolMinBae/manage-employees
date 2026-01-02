@@ -95,7 +95,7 @@ export default function RegisterPage() {
           // }
           if (rolesData.length > 0) {
               const staffRole =
-                rolesData.find((r) => r.name.toLowerCase() === 'staff') ||
+                rolesData.find((r: UserRole) => r.name.toLowerCase() === 'staff') ||
                 rolesData[rolesData.length - 1];
 
               setForm((prev) => ({ ...prev, userType: [staffRole.key] }));
