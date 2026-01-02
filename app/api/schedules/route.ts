@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
 import Schedule from '@models/Schedule';
 import SignupUser from '@models/SignupUser';
+import Corporation from '@models/Corporation';
 import {
   startOfWeek,
   endOfWeek,
@@ -14,45 +15,210 @@ import { WEEK_OPTIONS } from '@/constants/dateConfig';
 
 export const dynamic = 'force-dynamic';
 
-// 시간 중복 검사 함수
-function isTimeOverlapping(start1: string, end1: string, start2: string, end2: string): boolean {
-  const [start1Hour, start1Min] = start1.split(':').map(Number);
-  const [end1Hour, end1Min] = end1.split(':').map(Number);
-  const [start2Hour, start2Min] = start2.split(':').map(Number);
-  const [end2Hour, end2Min] = end2.split(':').map(Number);
+/* =========================
+   Business Day Helpers
+========================= */
 
-  const start1Minutes = start1Hour * 60 + start1Min;
-  const end1Minutes = end1Hour * 60 + end1Min;
-  const start2Minutes = start2Hour * 60 + start2Min;
-  const end2Minutes = end2Hour * 60 + end2Min;
+type BusinessWindow = {
+  startHour: number; // 0~23
+  endHour: number;   // 1~48 (cross-midnight이면 24초과 권장)
+  startM: number;
+  endM: number;
+};
 
-  // 두 시간대가 겹치는지 확인
-  return start1Minutes < end2Minutes && start2Minutes < end1Minutes;
+function isObjectIdLike(v: string) {
+  return /^[0-9a-fA-F]{24}$/.test(v);
 }
 
-// 중복 스케줄 검사 함수
-async function checkScheduleConflict(userId: string, date: string, start: string, end: string, excludeId?: string) {
+function normalizeBusinessWindow(startHourRaw: number, endHourRaw: number): BusinessWindow {
+  let startHour = Number.isFinite(startHourRaw) ? startHourRaw : 8;
+  let endHour = Number.isFinite(endHourRaw) ? endHourRaw : 24;
+
+  // 방어: 잘못 들어온 값 clamp
+  if (startHour < 0) startHour = 0;
+  if (startHour > 23) startHour = 23;
+
+  // ⭐ 핵심: endHour가 startHour 이하이면 "다음날"로 해석해서 +24
+  // 예) start=8, end=4 -> end=28
+  if (endHour <= startHour) endHour += 24;
+
+  if (endHour < 1) endHour = 1;
+  if (endHour > 48) endHour = 48;
+
+  const startM = startHour * 60;
+  const endM = endHour * 60;
+
+  return { startHour, endHour, startM, endM };
+}
+
+function parseTimeHM(timeStr: string): { h: number; m: number } | null {
+  if (typeof timeStr !== 'string') return null;
+  const m = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+
+  const h = Number(m[1]);
+  const mm = Number(m[2]);
+
+  if (!Number.isFinite(h) || !Number.isFinite(mm)) return null;
+  if (h < 0 || h > 23) return null;
+  if (mm < 0 || mm > 59) return null;
+
+  return { h, m: mm };
+}
+
+// 영업일 기준 minute(새벽은 +1440)
+function toBusinessMinute(h: number, m: number, startM: number) {
+  let min = h * 60 + m;
+  if (min < startM) min += 1440;
+  return min;
+}
+
+// start는 end 경계 포함하면 안됨(04:00 시작 불가), end는 end 경계 포함 가능(04:00 종료 가능)
+function validateScheduleWindow(start: string, end: string, bw: BusinessWindow) {
+  const s = parseTimeHM(start);
+  const e = parseTimeHM(end);
+  if (!s || !e) {
+    return { ok: false, message: 'Invalid time format. Use HH:mm.' as const };
+  }
+
+  const sM = toBusinessMinute(s.h, s.m, bw.startM);
+  const eM = toBusinessMinute(e.h, e.m, bw.startM);
+
+  // start: [startM, endM)
+  if (!(sM >= bw.startM && sM < bw.endM)) {
+    return {
+      ok: false,
+      message: `Start time ${start} is outside business hours.`,
+    } as const;
+  }
+
+  // end: (startM, endM]  (실제로는 end > start가 보장되니 범위는 <= endM만 체크)
+  if (!(eM >= bw.startM && eM <= bw.endM)) {
+    return {
+      ok: false,
+      message: `End time ${end} is outside business hours.`,
+    } as const;
+  }
+
+  if (eM <= sM) {
+    return {
+      ok: false,
+      message: `End time must be after start time (business-day 기준).`,
+    } as const;
+  }
+
+  return { ok: true, startMin: sM, endMin: eM } as const;
+}
+
+async function getBusinessWindowForUser(userId: string): Promise<BusinessWindow> {
+  // 기본값
+  let startHour = 8;
+  let endHour = 24;
+
+  try {
+    const user: any = await SignupUser.findById(userId)
+      .select('_id corp corporationId')
+      .lean();
+
+    // user.corporationId 우선, 없으면 user.corp 사용
+    const corpKeyRaw =
+      user?.corporationId ??
+      user?.corp ??
+      null;
+
+    let corpDoc: any = null;
+
+    if (corpKeyRaw) {
+      // corpKeyRaw가 ObjectId/문자열/객체 모두 방어
+      let corpKey: string | null = null;
+
+      if (typeof corpKeyRaw === 'string') {
+        corpKey = corpKeyRaw;
+      } else if (typeof corpKeyRaw === 'object') {
+        if (corpKeyRaw._id) corpKey = String(corpKeyRaw._id);
+        else if (corpKeyRaw.id) corpKey = String(corpKeyRaw.id);
+        else if (corpKeyRaw.name) corpKey = String(corpKeyRaw.name);
+      }
+
+      if (corpKey) {
+        if (isObjectIdLike(corpKey)) {
+          corpDoc = await Corporation.findById(corpKey).lean();
+        }
+        if (!corpDoc) {
+          // name 매칭
+          corpDoc = await Corporation.findOne({ name: corpKey }).lean();
+        }
+      }
+    }
+
+    if (corpDoc) {
+      startHour = Number.isFinite(corpDoc.businessDayStartHour) ? corpDoc.businessDayStartHour : startHour;
+      endHour = Number.isFinite(corpDoc.businessDayEndHour) ? corpDoc.businessDayEndHour : endHour;
+    }
+  } catch (e) {
+    // 실패해도 기본값으로 진행
+  }
+
+  return normalizeBusinessWindow(startHour, endHour);
+}
+
+/* =========================
+   Conflict Check (Business Day)
+========================= */
+
+// 영업일 기준으로 overlap 검사
+function isTimeOverlappingBW(
+  start1: string,
+  end1: string,
+  start2: string,
+  end2: string,
+  bw: BusinessWindow
+): boolean {
+  const v1 = validateScheduleWindow(start1, end1, bw);
+  const v2 = validateScheduleWindow(start2, end2, bw);
+
+  // 기존 데이터가 잘못된 경우도 있을 수 있으니, 그 경우는 overlap 판단에서 제외
+  if (!v1.ok || !v2.ok) return false;
+
+  return v1.startMin < v2.endMin && v2.startMin < v1.endMin;
+}
+
+// 중복 스케줄 검사 함수 (영업일 기준)
+async function checkScheduleConflictBW(
+  userId: string,
+  date: string,
+  start: string,
+  end: string,
+  bw: BusinessWindow,
+  excludeId?: string
+) {
   const existingSchedules = await Schedule.find({
     userId,
     date,
-    ...(excludeId && { _id: { $ne: excludeId } }) // 수정 시 현재 스케줄 제외
-  });
+    ...(excludeId && { _id: { $ne: excludeId } }),
+  })
+    .select('_id start end')
+    .lean();
 
   for (const schedule of existingSchedules) {
-    if (isTimeOverlapping(start, end, schedule.start, schedule.end)) {
+    if (isTimeOverlappingBW(start, end, schedule.start, schedule.end, bw)) {
       return {
         conflict: true,
         conflictingSchedule: {
           id: schedule._id,
           start: schedule.start,
-          end: schedule.end
-        }
+          end: schedule.end,
+        },
       };
     }
   }
 
   return { conflict: false, conflictingSchedule: null };
 }
+
+/* =========================
+   GET
+========================= */
 
 export async function GET(req: NextRequest) {
   try {
@@ -75,7 +241,7 @@ export async function GET(req: NextRequest) {
       if (userType) filter.userType = userType;
 
       const schedules = await Schedule.find(filter).lean();
-      
+
       // If userType is specified, we need to populate user data
       if (userType && schedules.length > 0) {
         const userIds = Array.from(new Set(schedules.map((s: any) => s.userId.toString())));
@@ -84,14 +250,14 @@ export async function GET(req: NextRequest) {
           .lean();
 
         const userMap = new Map();
-        users.forEach(user => {
-          userMap.set((user._id as any).toString(), {
+        users.forEach((user: any) => {
+          userMap.set(user._id.toString(), {
             name: user.name,
             corp: user.corp,
             eid: user.eid,
             category: user.category,
-            position: Array.isArray(user.userType) && user.userType.length > 0 
-              ? user.userType.join(', ') 
+            position: Array.isArray(user.userType) && user.userType.length > 0
+              ? user.userType.join(', ')
               : (user.userType || 'Barista'),
           });
         });
@@ -122,14 +288,14 @@ export async function GET(req: NextRequest) {
       .lean();
 
     const userMap = new Map();
-    users.forEach(user => {
-      userMap.set((user._id as any).toString(), {
+    users.forEach((user: any) => {
+      userMap.set(user._id.toString(), {
         name: user.name,
         corp: user.corp,
         eid: user.eid,
         category: user.category,
-        position: Array.isArray(user.userType) && user.userType.length > 0 
-          ? user.userType.join(', ') 
+        position: Array.isArray(user.userType) && user.userType.length > 0
+          ? user.userType.join(', ')
           : (user.userType || 'Barista'),
       });
     });
@@ -152,24 +318,24 @@ export async function GET(req: NextRequest) {
       const weekStart = startOfWeek(today, WEEK_OPTIONS);
       const weekEnd = endOfWeek(today, WEEK_OPTIONS);
 
-      const filteredWithUserData = withUserData.filter((s) => {
+      const filteredWithUserData = withUserData.filter((s: any) => {
         if (!filterType || !filterKeyword) return true;
         const value = s[filterType as keyof typeof s];
         return value?.toString().toLowerCase().includes(filterKeyword);
       });
 
-      const filtered = filteredWithUserData.filter((s) =>
+      const filtered = filteredWithUserData.filter((s: any) =>
         isWithinInterval(parseISO(s.date), { start: weekStart, end: weekEnd })
       );
 
       const scheduleMap: Record<string, any> = {};
-      filtered.forEach((s) => {
+      filtered.forEach((s: any) => {
         const status =
           s.approved === true
             ? 'approved'
             : new Date(s.createdAt) >= new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-            ? 'pending'
-            : 'pending';
+              ? 'pending'
+              : 'pending';
 
         if (!scheduleMap[s.userId]) {
           scheduleMap[s.userId] = {
@@ -232,33 +398,52 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/* =========================
+   POST (Create)
+========================= */
+
 export async function POST(req: NextRequest) {
   try {
     await dbConnect();
     const data = await req.json();
-    
+
     // 필수 필드 검증
-    if (!data.userId || !data.userType || !data.date || !data.start || !data.end) {
+    if (!data.userId || !data.date || !data.start || !data.end) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, userType, date, start, end' },
+        { error: 'Missing required fields: userId, date, start, end' },
         { status: 400 }
       );
     }
 
-    // 시간 중복 검사
-    const conflictCheck = await checkScheduleConflict(
+    // ✅ 회사 영업시간 기반 검증
+    const bw = await getBusinessWindowForUser(data.userId);
+    const v = validateScheduleWindow(data.start, data.end, bw);
+    if (!v.ok) {
+      return NextResponse.json(
+        {
+          error: 'Invalid schedule time',
+          message: v.message,
+          businessHours: { startHour: bw.startHour, endHour: bw.endHour },
+        },
+        { status: 400 }
+      );
+    }
+
+    // ✅ 영업일 기준 중복 검사
+    const conflictCheck = await checkScheduleConflictBW(
       data.userId,
       data.date,
       data.start,
-      data.end
+      data.end,
+      bw
     );
 
     if (conflictCheck.conflict) {
       return NextResponse.json(
-        { 
+        {
           error: 'Schedule conflict detected',
           message: `Time ${data.start}-${data.end} overlaps with existing schedule ${conflictCheck.conflictingSchedule!.start}-${conflictCheck.conflictingSchedule!.end}`,
-          conflictingSchedule: conflictCheck.conflictingSchedule
+          conflictingSchedule: conflictCheck.conflictingSchedule,
         },
         { status: 400 }
       );
@@ -275,12 +460,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/* =========================
+   PUT (Update)
+========================= */
+
 export async function PUT(req: NextRequest) {
   try {
     await dbConnect();
     const data = await req.json();
     const { id, ...updates } = data;
-    
+
     if (!id) {
       return NextResponse.json(
         { error: 'Missing schedule ID' },
@@ -289,7 +478,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // 기존 스케줄 조회
-    const existingSchedule = await Schedule.findById(id);
+    const existingSchedule: any = await Schedule.findById(id);
     if (!existingSchedule) {
       return NextResponse.json(
         { error: 'Schedule not found' },
@@ -297,25 +486,42 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // 시간이 변경되는 경우에만 중복 검사
-    if (updates.start || updates.end) {
-      const newStart = updates.start || existingSchedule.start;
-      const newEnd = updates.end || existingSchedule.end;
+    const targetUserId = existingSchedule.userId.toString();
+    const targetDate = updates.date || existingSchedule.date;
+    const newStart = updates.start || existingSchedule.start;
+    const newEnd = updates.end || existingSchedule.end;
 
-      const conflictCheck = await checkScheduleConflict(
-        existingSchedule.userId.toString(),
-        existingSchedule.date,
+    // ✅ 회사 영업시간 기반 검증 (start/end/date 중 하나라도 변경되면 검증)
+    if (updates.start || updates.end || updates.date) {
+      const bw = await getBusinessWindowForUser(targetUserId);
+      const v = validateScheduleWindow(newStart, newEnd, bw);
+      if (!v.ok) {
+        return NextResponse.json(
+          {
+            error: 'Invalid schedule time',
+            message: v.message,
+            businessHours: { startHour: bw.startHour, endHour: bw.endHour },
+          },
+          { status: 400 }
+        );
+      }
+
+      // ✅ 영업일 기준 중복 검사 (현재 스케줄 제외)
+      const conflictCheck = await checkScheduleConflictBW(
+        targetUserId,
+        targetDate,
         newStart,
         newEnd,
-        id // 현재 스케줄은 검사에서 제외
+        bw,
+        id
       );
 
       if (conflictCheck.conflict) {
         return NextResponse.json(
-          { 
+          {
             error: 'Schedule conflict detected',
             message: `Time ${newStart}-${newEnd} overlaps with existing schedule ${conflictCheck.conflictingSchedule!.start}-${conflictCheck.conflictingSchedule!.end}`,
-            conflictingSchedule: conflictCheck.conflictingSchedule
+            conflictingSchedule: conflictCheck.conflictingSchedule,
           },
           { status: 400 }
         );
@@ -333,6 +539,10 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+/* =========================
+   DELETE
+========================= */
+
 export async function DELETE(req: NextRequest) {
   try {
     await dbConnect();
@@ -341,21 +551,21 @@ export async function DELETE(req: NextRequest) {
     const userId = searchParams.get('userId');
     const date = searchParams.get('date');
     const deleteAll = searchParams.get('deleteAll'); // 'true'이면 해당 날짜의 모든 스케줄 삭제
-    
+
     if (deleteAll === 'true' && userId && date) {
       // 특정 사용자의 특정 날짜 모든 스케줄 삭제
       const deleted = await Schedule.deleteMany({ userId, date });
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         deletedCount: deleted.deletedCount,
-        message: `Deleted ${deleted.deletedCount} schedules for ${date}` 
+        message: `Deleted ${deleted.deletedCount} schedules for ${date}`
       });
     }
-    
+
     if (!id) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 });
     }
-    
+
     // 단일 스케줄 삭제
     const deleted = await Schedule.findByIdAndDelete(id);
     if (!deleted) {

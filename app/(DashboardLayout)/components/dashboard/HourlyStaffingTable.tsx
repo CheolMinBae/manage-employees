@@ -19,8 +19,8 @@ import dayjs from 'dayjs';
 import { useEffect, useState, useRef } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import EditShiftDialog from '../schedule/EditShiftDialog';
-import { CALIFORNIA_TIMEZONE } from '@/constants/dateConfig';
 
 interface Employee {
   name: string;
@@ -84,23 +84,23 @@ interface TimeSelectionDialogProps {
   selectedDate: Date;
 }
 
-function TimeSelectionDialog({ 
-  open, 
-  onClose, 
-  onConfirm, 
-  onTemplateConfirm, 
-  employeeName, 
-  selectedHour, 
-  userId, 
-  selectedDate 
+function TimeSelectionDialog({
+  open,
+  onClose,
+  onConfirm,
+  onTemplateConfirm,
+  employeeName,
+  selectedHour,
+  userId,
+  selectedDate
 }: TimeSelectionDialogProps) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.position === 'admin';
   const isEmployee = session?.user?.position === 'employee';
-  
+
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  
+
   // 템플릿 관련 상태
   const [useTemplate, setUseTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -112,7 +112,7 @@ function TimeSelectionDialog({
       const hourStr = selectedHour.toString().padStart(2, '0');
       setStartTime(`${hourStr}:00`);
       setEndTime(`${(selectedHour + 1).toString().padStart(2, '0')}:00`);
-      
+
       // 템플릿 상태 초기화
       setUseTemplate(false);
       setSelectedTemplate('');
@@ -166,7 +166,7 @@ function TimeSelectionDialog({
       const existingSchedulesResponse = await fetch(`/api/schedules?userId=${userId}&date=${dateStr}`);
       if (existingSchedulesResponse.ok) {
         const existingSchedules = await existingSchedulesResponse.json();
-        
+
         // 기존 스케줄들 삭제
         await Promise.all(
           existingSchedules.map((schedule: any) =>
@@ -230,7 +230,7 @@ function TimeSelectionDialog({
               }
               label="Force Schedule Templates 사용"
             />
-            
+
             {useTemplate && (
               <Box sx={{ mt: 2 }}>
                 <FormControl fullWidth>
@@ -247,18 +247,18 @@ function TimeSelectionDialog({
                     ))}
                   </Select>
                 </FormControl>
-                
+
                 {selectedTemplate && (
                   <Alert severity="warning" sx={{ mt: 2 }}>
                     <Typography variant="body2">
-                      <strong>Warning:</strong> Applying a template will delete all existing schedules for that date 
+                      <strong>Warning:</strong> Applying a template will delete all existing schedules for that date
                       and replace them with the selected template.
                     </Typography>
                   </Alert>
                 )}
               </Box>
             )}
-            
+
             <Divider sx={{ my: 3 }} />
           </Box>
         )}
@@ -304,8 +304,8 @@ function TimeSelectionDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button 
-          onClick={handleConfirm} 
+        <Button
+          onClick={handleConfirm}
           variant="contained"
           disabled={!isFormValid}
         >
@@ -317,6 +317,7 @@ function TimeSelectionDialog({
 }
 
 export default function HourlyStaffingTable({ initialDate = new Date() }: HourlyStaffingTableProps) {
+  const searchParams = useSearchParams(); // ✅ URL 쿼리 읽기
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
   const [data, setData] = useState<HourlyStaffingData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -325,16 +326,30 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   const [toastMessage, setToastMessage] = useState('');
   const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<{ userId: string; name: string; hour: number; userType: string } | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<{ userId: string; name: string; hour: number } | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
-  
-  // 세션 정보 추가
+
+  // 세션 정보
   const { data: session } = useSession();
   const userPosition = session?.user?.position;
   const userName = session?.user?.name;
   const isAdmin = userPosition === 'admin';
-  
+
+  // ✅ URL의 ?date=YYYY-MM-DD 가 바뀌면 selectedDate 동기화
+  useEffect(() => {
+    const d = searchParams.get('date');
+    if (d) {
+      const [y, m, da] = d.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(da)) {
+        const next = new Date(y, m - 1, da);
+        if (!isNaN(next.getTime())) {
+          setSelectedDate(next);
+        }
+      }
+    }
+  }, [searchParams]);
+
   // 필터링 상태
   const [nameFilter, setNameFilter] = useState('');
   const [userTypeFilter, setUserTypeFilter] = useState<string[]>([]);
@@ -350,7 +365,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     direction: null
   });
 
-  // 1. Add/Edit Shift Dialog 상태 추가
+  // Add/Edit Shift Dialog 상태
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editDialogInfo, setEditDialogInfo] = useState<{ employee: EmployeeSchedule; hour: number } | null>(null);
   const [editScheduleData, setEditScheduleData] = useState<any>(null);
@@ -361,65 +376,57 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     } else {
       setLoading(true);
     }
-    
+
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       const response = await fetch(`/api/schedules/hourly?date=${dateStr}&includeAdmin=true`, {
-        cache: 'no-store', // 캐시 무시하여 최신 데이터 가져오기
+        cache: 'no-store',
       });
       const result = await response.json();
-      console.log('API Response:', result);
-      console.log('Employee schedules sample:', result.employeeSchedules?.slice(0, 2));
       setData(result);
     } catch (error) {
       console.error('Error fetching hourly data:', error);
     } finally {
-      if (isRefresh) {
-        setRefreshing(false);
-      } else {
-        setLoading(false);
-      }
+      if (isRefresh) setRefreshing(false);
+      else setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchHourlyData();
+  }, [selectedDate]);
+
   // 필터링된 직원 데이터
   const filteredEmployees = (data?.employeeSchedules || []).filter(employee => {
-    // admin이 아닌 경우 자신의 스케줄만 표시
     if (!isAdmin && employee.name !== userName) {
       return false;
     }
-    
+
     const nameMatch = employee.name.toLowerCase().includes(nameFilter.toLowerCase());
     const userTypeMatch = userTypeFilter.length === 0 || userTypeFilter.includes(employee.userType);
     const companyMatch = !companyFilter || employee.corp === companyFilter;
     const categoryMatch = categoryFilter.length === 0 || categoryFilter.includes(employee.category);
-    
+
     return nameMatch && userTypeMatch && companyMatch && categoryMatch;
   });
 
   // 정렬된 직원 데이터
   const sortedEmployees = [...filteredEmployees].sort((a, b) => {
     if (!sortConfig.hour || !sortConfig.direction) return 0;
-    
-    // hourlyStatus 배열은 0~23시간을 담고 있으므로 직접 hour 값을 인덱스로 사용
+
     const aWorkingRatio = a.hourlyStatus?.[sortConfig.hour]?.workingRatio || 0;
     const bWorkingRatio = b.hourlyStatus?.[sortConfig.hour]?.workingRatio || 0;
-    
-    if (sortConfig.direction === 'desc') {
-      return bWorkingRatio - aWorkingRatio; // 내림차순 (많이 일하는 순)
-    } else {
-      return aWorkingRatio - bWorkingRatio; // 오름차순 (적게 일하는 순)
-    }
+
+    return sortConfig.direction === 'desc' ? (bWorkingRatio - aWorkingRatio) : (aWorkingRatio - bWorkingRatio);
   });
 
-  // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산 (pending/approved 분리)
+  // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산
   const filteredHourlyData = (data?.hourlyData || []).map(hourData => {
     let pendingCount = 0;
     let approvedCount = 0;
     const workingEmployees: EmployeeSchedule[] = [];
-    
+
     sortedEmployees.forEach(emp => {
-      // hourlyStatus 배열은 0~23시간을 담고 있으므로 직접 hourData.hour를 인덱스로 사용
       const status = emp.hourlyStatus?.[hourData.hour];
       if (status?.isWorking && status?.workingRatio) {
         workingEmployees.push(emp);
@@ -430,16 +437,16 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         }
       }
     });
-    
+
     return {
       ...hourData,
       pendingCount,
       approvedCount,
-      employees: workingEmployees // 실제 근무하는 직원들만 포함
+      employees: workingEmployees
     };
   });
 
-  // 고유한 userType, company, category 목록 생성
+  // 고유 목록
   const uniqueUserTypes = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.userType)));
   const uniqueCompanies = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.corp)));
   const uniqueCategories = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.category)));
@@ -449,24 +456,17 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     setUserTypeFilter([]);
     setCompanyFilter('');
     setCategoryFilter([]);
-    setSortConfig({ hour: null, direction: null }); // 정렬도 초기화
+    setSortConfig({ hour: null, direction: null });
   };
 
-  // 시간대별 정렬 핸들러
   const handleHourSort = (hour: number) => {
     setSortConfig(prevConfig => {
       if (prevConfig.hour !== hour) {
-        // 다른 시간을 클릭한 경우: 해당 시간으로 내림차순 정렬
         return { hour, direction: 'desc' };
       } else {
-        // 같은 시간을 클릭한 경우: 정렬 방향 변경
-        if (prevConfig.direction === 'desc') {
-          return { hour, direction: 'asc' };
-        } else if (prevConfig.direction === 'asc') {
-          return { hour: null, direction: null }; // 정렬 취소
-        } else {
-          return { hour, direction: 'desc' };
-        }
+        if (prevConfig.direction === 'desc') return { hour, direction: 'asc' };
+        if (prevConfig.direction === 'asc') return { hour: null, direction: null };
+        return { hour, direction: 'desc' };
       }
     });
   };
@@ -484,7 +484,6 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         },
         body: JSON.stringify({
           userId: selectedEmployee.userId,
-          userType: selectedEmployee.userType,
           date: dateStr,
           start: startTime,
           end: endTime,
@@ -496,7 +495,6 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         setToastMessage(`${selectedEmployee.name}의 ${startTime}-${endTime} 근무가 등록되었습니다`);
         setToastSeverity('success');
         setToastOpen(true);
-        // 데이터 새로고침
         fetchHourlyData(true);
       } else {
         throw new Error('Failed to add schedule');
@@ -509,8 +507,8 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     }
   };
 
-  const handleOpenDialog = (userId: string, hour: number, employeeName: string, userType: string) => {
-    setSelectedEmployee({ userId, name: employeeName, hour, userType });
+  const handleOpenDialog = (userId: string, hour: number, employeeName: string) => {
+    setSelectedEmployee({ userId, name: employeeName, hour });
     setDialogOpen(true);
   };
 
@@ -519,13 +517,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     setSelectedEmployee(null);
   };
 
-  const handleCloseToast = () => {
-    setToastOpen(false);
-  };
-
-  useEffect(() => {
-    fetchHourlyData();
-  }, [selectedDate]);
+  const handleCloseToast = () => setToastOpen(false);
 
   const handleRefresh = () => {
     fetchHourlyData(true);
@@ -539,57 +531,55 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   };
 
   const formatDateHeader = (dateStr: string) => {
-    // 빈 문자열이나 잘못된 형식 체크
     if (!dateStr || typeof dateStr !== 'string') {
       return 'Invalid Date';
     }
 
-    // 서버에서 전달하는 date 문자열(YYYY-MM-DD)을 직접 파싱하여 시간대 변환 방지
     const parts = dateStr.split('-');
     if (parts.length !== 3) {
       return 'Invalid Date';
     }
 
     const [year, month, day] = parts.map(Number);
-    
-    // 숫자 변환 실패 체크
+
     if (isNaN(year) || isNaN(month) || isNaN(day)) {
       return 'Invalid Date';
     }
 
-    // 날짜 범위 체크
     if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
       return 'Invalid Date';
     }
 
-    const date = new Date(year, month - 1, day); // 로컬 시간으로 직접 생성
-    
-    // 유효한 날짜인지 확인
+    const date = new Date(year, month - 1, day);
+
     if (isNaN(date.getTime())) {
       return 'Invalid Date';
     }
 
-    return format(date, 'MMM d (EEE)'); // 요일 3글자 추가
+    return format(date, 'MMM d (EEE)');
   };
 
   const handleDateChange = (direction: 'prev' | 'next') => {
-    setSelectedDate(prevDate => 
+    setSelectedDate(prevDate =>
       direction === 'prev' ? subDays(prevDate, 1) : addDays(prevDate, 1)
     );
   };
 
+  const [datePickerOpenState, setDatePickerOpenState] = useState(false);
+  const datePickerAnchorRef = useRef<HTMLDivElement>(null);
+
   const handleDatePickerToggle = () => {
-    setDatePickerOpen(!datePickerOpen);
+    setDatePickerOpenState(!datePickerOpenState);
   };
 
   const handleDatePickerClose = () => {
-    setDatePickerOpen(false);
+    setDatePickerOpenState(false);
   };
 
   const handleDateSelect = (newDate: dayjs.Dayjs | null) => {
     if (newDate) {
       setSelectedDate(newDate.toDate());
-      setDatePickerOpen(false);
+      setDatePickerOpenState(false);
     }
   };
 
@@ -598,7 +588,6 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       return <Typography variant="body2">No employees working</Typography>;
     }
 
-    // User type별 카운트 계산 (userType이 있으면 사용, 없으면 position 사용)
     const userTypeCounts = employees.reduce((acc, emp) => {
       const typeKey = emp.userType || emp.position;
       acc[typeKey] = (acc[typeKey] || 0) + 1;
@@ -617,13 +606,11 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 {emp.name}
               </Typography>
               <Typography variant="caption" color="white">
-                {emp.userType || emp.position} • {/* shift 정보는 hourlyStatus에서 추출 */}
-                {emp.hourlyStatus && emp.hourlyStatus.filter(h => h.isWorking).map(h => h.shift ? h.shift : '').filter(s => s !== '').join(', ')}
+                {emp.userType || emp.position} • {emp.hourlyStatus && emp.hourlyStatus.filter(h => h.isWorking).map(h => h.shift ? h.shift : '').filter(s => s !== '').join(', ')}
               </Typography>
             </Box>
           ))}
         </Stack>
-        {/* User Type별 합계 */}
         <Box sx={{ borderTop: '1px solid #e0e0e0', pt: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 0.5, fontSize: '0.75rem', fontWeight: 'bold' }}>
             Summary by Position:
@@ -653,14 +640,6 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     );
   };
 
-  const getCountColor = (count: number) => {
-    if (count === 0) return '#9e9e9e';
-    if (count <= 2) return '#f44336';
-    if (count <= 4) return '#ff9800';
-    return '#4caf50';
-  };
-
-  // 직원별 전체 시간 합계 계산 함수 (approved/pending 분리)
   const getEmployeeTotalHours = (employee: EmployeeSchedule): { approved: number; pending: number; total: number } => {
     const result = (employee.hourlyStatus || []).reduce((acc: { approved: number; pending: number }, status: any) => {
       if (status?.isWorking && status?.workingRatio) {
@@ -672,7 +651,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       }
       return acc;
     }, { approved: 0, pending: 0 });
-    
+
     return {
       approved: result.approved,
       pending: result.pending,
@@ -680,9 +659,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     };
   };
 
-  // 시간 표시 함수 (서버에서 전달하는 hour 값은 이미 캘리포니아 시간 기준)
   const formatHourCalifornia = (hour: number) => {
-    // 서버에서 전달하는 hour는 이미 캘리포니아 시간 기준 3-23시
     if (hour === 0) return '12 AM';
     if (hour === 12) return '12 PM';
     if (hour < 12) return `${hour} AM`;
@@ -691,13 +668,13 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
 
   if (loading) {
     return (
-      <Box>
+      <Box id="hourly-section">
         <Box display="flex" alignItems="center" gap={1} sx={{ mb: 2 }}>
           <Typography variant="h6">
             ⏰ Hourly Staffing
           </Typography>
-          <IconButton 
-            size="small" 
+          <IconButton
+            size="small"
             onClick={handleRefresh}
             disabled={loading || refreshing}
           >
@@ -711,13 +688,13 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
 
   if (!data) {
     return (
-      <Box>
+      <Box id="hourly-section">
         <Box display="flex" alignItems="center" gap={1} sx={{ mb: 2 }}>
           <Typography variant="h6">
             ⏰ Hourly Staffing
           </Typography>
-          <IconButton 
-            size="small" 
+          <IconButton
+            size="small"
             onClick={handleRefresh}
             disabled={loading || refreshing}
           >
@@ -730,18 +707,19 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   }
 
   return (
-    <Box>
+    <Box id="hourly-section">
       {/* 캘리포니아 시간 안내 */}
       <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
         All times are displayed in California (Pacific Time, America/Los_Angeles) time zone.
       </Typography>
+
       <Box display="flex" alignItems="center" gap={1} sx={{ mb: 2 }}>
         <Typography variant="h6">
           ⏰ Hourly Staffing
         </Typography>
         <Tooltip title="Refresh data">
-          <IconButton 
-            size="small" 
+          <IconButton
+            size="small"
             onClick={handleRefresh}
             disabled={loading || refreshing}
             sx={{
@@ -751,12 +729,8 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               ...(refreshing && {
                 animation: 'spin 1s linear infinite',
                 '@keyframes spin': {
-                  '0%': {
-                    transform: 'rotate(0deg)',
-                  },
-                  '100%': {
-                    transform: 'rotate(360deg)',
-                  },
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' },
                 },
               }),
             }}
@@ -861,23 +835,19 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           </Box>
         </Box>
       )}
-      
+
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell sx={{ minWidth: 120, position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 1 }}>
                 <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
-                  <IconButton 
-                    size="small" 
-                    onClick={() => handleDateChange('prev')}
-                    sx={{ p: 0.5 }}
-                  >
+                  <IconButton size="small" onClick={() => handleDateChange('prev')} sx={{ p: 0.5 }}>
                     <ArrowBackIosNewIcon fontSize="small" />
                   </IconButton>
-                  <Box 
+                  <Box
                     ref={datePickerRef}
-                    sx={{ 
+                    sx={{
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -885,9 +855,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                       px: 1,
                       py: 0.5,
                       borderRadius: 1,
-                      '&:hover': {
-                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                      }
+                      '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' },
                     }}
                     onClick={handleDatePickerToggle}
                   >
@@ -896,22 +864,13 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                       {formatDateHeader(data?.date || '')}
                     </Typography>
                   </Box>
-                  <IconButton 
-                    size="small" 
-                    onClick={() => handleDateChange('next')}
-                    sx={{ p: 0.5 }}
-                  >
+                  <IconButton size="small" onClick={() => handleDateChange('next')} sx={{ p: 0.5 }}>
                     <ArrowForwardIosIcon fontSize="small" />
                   </IconButton>
                 </Box>
 
                 {/* Date Picker Popper */}
-                <Popper 
-                  open={datePickerOpen} 
-                  anchorEl={datePickerRef.current} 
-                  placement="bottom"
-                  sx={{ zIndex: 1300 }}
-                >
+                <Popper open={datePickerOpen} anchorEl={datePickerRef.current} placement="bottom" sx={{ zIndex: 1300 }}>
                   <ClickAwayListener onClickAway={handleDatePickerClose}>
                     <Paper sx={{ p: 1, mt: 1 }}>
                       <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -928,21 +887,22 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   </ClickAwayListener>
                 </Popper>
               </TableCell>
+
               {(data?.hourlyData || []).map((hourData) => (
                 <>
                   {(hourData.hour >= 3 && hourData.hour <= 23) && (
-                    <TableCell 
-                      key={hourData.hour} 
-                      align="center" 
-                      sx={{ 
-                        minWidth: 40, 
+                    <TableCell
+                      key={hourData.hour}
+                      align="center"
+                      sx={{
+                        minWidth: 40,
                         px: 0.5,
                         cursor: 'pointer',
-                        backgroundColor: sortConfig.hour === hourData.hour 
+                        backgroundColor: sortConfig.hour === hourData.hour
                           ? (sortConfig.direction === 'desc' ? '#e3f2fd' : '#fff3e0')
                           : 'transparent',
                         '&:hover': {
-                          backgroundColor: sortConfig.hour === hourData.hour 
+                          backgroundColor: sortConfig.hour === hourData.hour
                             ? (sortConfig.direction === 'desc' ? '#bbdefb' : '#ffe0b2')
                             : 'rgba(0, 0, 0, 0.04)'
                         },
@@ -954,10 +914,10 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                         {formatHourCalifornia(hourData.hour)}
                       </Typography>
                       {sortConfig.hour === hourData.hour && (
-                        <Typography 
-                          variant="caption" 
-                          sx={{ 
-                            fontSize: '0.6rem', 
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontSize: '0.6rem',
                             display: 'block',
                             color: sortConfig.direction === 'desc' ? '#1976d2' : '#f57c00'
                           }}
@@ -976,6 +936,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               </TableCell>
             </TableRow>
           </TableHead>
+
           <TableBody>
             {/* Total Count Row (pending/approved 분리 표기) */}
             <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
@@ -988,11 +949,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 <>
                   {(hourData.hour >= 3 && hourData.hour <= 23) && (
                     <TableCell key={hourData.hour} align="center" sx={{ px: 0.5, py: 1 }}>
-                      <Tooltip
-                        title={renderTooltipContent(hourData.employees)}
-                        placement="top"
-                        arrow
-                      >
+                      <Tooltip title={renderTooltipContent(hourData.employees)} placement="top" arrow>
                         <Box>
                           <>
                             <Typography
@@ -1017,31 +974,20 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               ))}
               <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                 <Box display="flex" flexDirection="column" gap={0.5}>
-                  {/* Pending 총합 */}
-                  <Typography 
-                    variant="body2" 
+                  <Typography
+                    variant="body2"
                     fontWeight="bold"
-                    sx={{ 
-                      color: '#ff9800', // pending 색상
-                      fontSize: '0.75rem',
-                      lineHeight: 1
-                    }}
+                    sx={{ color: '#ff9800', fontSize: '0.75rem', lineHeight: 1 }}
                   >
                     {sortedEmployees
                       .reduce((sum, emp) => sum + getEmployeeTotalHours(emp).pending, 0)
                       .toFixed(2)}
                   </Typography>
-                  {/* 구분선 */}
                   <Divider sx={{ my: 0.1 }} />
-                  {/* Approved 총합 */}
-                  <Typography 
-                    variant="body2" 
+                  <Typography
+                    variant="body2"
                     fontWeight="bold"
-                    sx={{ 
-                      color: '#4caf50', // approved 색상
-                      fontSize: '0.75rem',
-                      lineHeight: 1
-                    }}
+                    sx={{ color: '#4caf50', fontSize: '0.75rem', lineHeight: 1 }}
                   >
                     {sortedEmployees
                       .reduce((sum, emp) => sum + getEmployeeTotalHours(emp).approved, 0)
@@ -1057,8 +1003,8 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 1 }}>
                   <Box>
                     <Typography variant="body2" fontWeight="bold">
-                      {employee.name} ({Array.isArray(employee.userType) 
-                        ? employee.userType.join(', ') 
+                      {employee.name} ({Array.isArray(employee.userType)
+                        ? employee.userType.join(', ')
                         : String(employee.userType || '')})
                     </Typography>
                     <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
@@ -1068,6 +1014,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                     </Stack>
                   </Box>
                 </TableCell>
+
                 {(data?.hourlyData || []).map((hourData) => {
                   const hour = hourData.hour;
                   if (hour < 3 || hour > 23) return null;
@@ -1093,41 +1040,36 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                               } : {},
                             }}
                             onClick={async () => {
-                              // admin이 아닌 경우 자신의 스케줄만 편집 가능
-                              if (!isAdmin && employee.name !== userName) {
-                                return;
-                              }
-                              
+                              if (!isAdmin && employee.name !== userName) return;
+
                               setEditDialogInfo({ employee, hour });
-                              
-                              // 실제 스케줄 데이터 가져오기
+
                               try {
                                 const dateStr = format(selectedDate, 'yyyy-MM-dd');
                                 const response = await fetch(`/api/schedules?userId=${employee.userId}&date=${dateStr}`);
                                 if (response.ok) {
                                   const schedules = await response.json();
-                                  
-                                  // 해당 시간대에 해당하는 스케줄 찾기
+
                                   const relevantSchedule = schedules.find((schedule: any) => {
                                     const startHour = parseInt(schedule.start.split(':')[0]);
                                     const startMinute = parseInt(schedule.start.split(':')[1]);
                                     const endHour = parseInt(schedule.end.split(':')[0]);
                                     const endMinute = parseInt(schedule.end.split(':')[1]);
-                                    
+
                                     const startTotalMinutes = startHour * 60 + startMinute;
                                     const endTotalMinutes = endHour * 60 + endMinute;
                                     const currentHourStart = hour * 60;
                                     const currentHourEnd = (hour + 1) * 60;
-                                    
+
                                     return startTotalMinutes < currentHourEnd && endTotalMinutes > currentHourStart;
                                   });
-                                  
+
                                   setEditScheduleData(relevantSchedule);
                                 }
                               } catch (error) {
                                 console.error('Error fetching schedule data:', error);
                               }
-                              
+
                               setEditDialogOpen(true);
                             }}
                           >
@@ -1135,12 +1077,11 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                           </Typography>
                         </Tooltip>
                       ) : (
-                        // admin이거나 자신의 스케줄인 경우에만 Add 버튼 표시
                         (isAdmin || employee.name === userName) ? (
                           <Tooltip title="Add shift" placement="top">
                             <IconButton
                               size="small"
-                              onClick={() => handleOpenDialog(employee.userId, hour, employee.name, employee.userType)}
+                              onClick={() => handleOpenDialog(employee.userId, hour, employee.name)}
                               sx={{ width: 20, height: 20, color: '#2196f3', '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2' } }}
                             >
                               <AddIcon sx={{ fontSize: '0.8rem' }} />
@@ -1155,31 +1096,21 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                     </TableCell>
                   );
                 })}
+
                 <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                   <Box display="flex" flexDirection="column" gap={0.5}>
-                    {/* Pending 시간 */}
-                    <Typography 
-                      variant="body2" 
+                    <Typography
+                      variant="body2"
                       fontWeight="bold"
-                      sx={{ 
-                        color: '#ff9800', // pending 색상
-                        fontSize: '0.75rem',
-                        lineHeight: 1
-                      }}
+                      sx={{ color: '#ff9800', fontSize: '0.75rem', lineHeight: 1 }}
                     >
                       {getEmployeeTotalHours(employee).pending.toFixed(2)}
                     </Typography>
-                    {/* 구분선 */}
                     <Divider sx={{ my: 0.1 }} />
-                    {/* Approved 시간 */}
-                    <Typography 
-                      variant="body2" 
+                    <Typography
+                      variant="body2"
                       fontWeight="bold"
-                      sx={{ 
-                        color: '#4caf50', // approved 색상
-                        fontSize: '0.75rem',
-                        lineHeight: 1
-                      }}
+                      sx={{ color: '#4caf50', fontSize: '0.75rem', lineHeight: 1 }}
                     >
                       {getEmployeeTotalHours(employee).approved.toFixed(2)}
                     </Typography>
@@ -1196,26 +1127,10 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         <Typography variant="caption" color="text.secondary">
           Legend:
         </Typography>
-        <Chip 
-          label="0 staff" 
-          size="small" 
-          sx={{ backgroundColor: '#9e9e9e', color: 'white', fontSize: '0.7rem' }} 
-        />
-        <Chip 
-          label="1-2 staff" 
-          size="small" 
-          sx={{ backgroundColor: '#f44336', color: 'white', fontSize: '0.7rem' }} 
-        />
-        <Chip 
-          label="3-4 staff" 
-          size="small" 
-          sx={{ backgroundColor: '#ff9800', color: 'white', fontSize: '0.7rem' }} 
-        />
-        <Chip 
-          label="5+ staff" 
-          size="small" 
-          sx={{ backgroundColor: '#4caf50', color: 'white', fontSize: '0.7rem' }} 
-        />
+        <Chip label="0 staff" size="small" sx={{ backgroundColor: '#9e9e9e', color: 'white', fontSize: '0.7rem' }} />
+        <Chip label="1-2 staff" size="small" sx={{ backgroundColor: '#f44336', color: 'white', fontSize: '0.7rem' }} />
+        <Chip label="3-4 staff" size="small" sx={{ backgroundColor: '#ff9800', color: 'white', fontSize: '0.7rem' }} />
+        <Chip label="5+ staff" size="small" sx={{ backgroundColor: '#4caf50', color: 'white', fontSize: '0.7rem' }} />
         <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
           Individual: 1 = Full hour • 0.x = Partial hour • - = Not working
         </Typography>
@@ -1262,10 +1177,10 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       <Snackbar
         open={toastOpen}
         autoHideDuration={3000}
-        onClose={handleCloseToast}
+        onClose={setToastOpen.bind(null, false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert onClose={handleCloseToast} severity={toastSeverity} sx={{ width: '100%' }}>
+        <Alert onClose={setToastOpen.bind(null, false)} severity={toastSeverity} sx={{ width: '100%' }}>
           {toastMessage}
         </Alert>
       </Snackbar>
