@@ -97,7 +97,8 @@ export async function GET(req: NextRequest) {
     // 개별 직원의 시간대별 근무 상태 계산 (캘리포니아 시간 기준 3am~11pm)
     const employeeSchedules = allUsers.map(user => {
       const userId = (user._id as any).toString();
-      const userSchedules = schedules.filter(s => s.userId === userId);
+      // 🔶 userId 비교 시 toString() 추가 (ObjectId vs String 타입 불일치 해결)
+      const userSchedules = schedules.filter(s => String(s.userId) === userId);
       
       // 시간별 상태 계산
       const hourlyStatus = Array.from({ length: 24 }, (_, hour) => {

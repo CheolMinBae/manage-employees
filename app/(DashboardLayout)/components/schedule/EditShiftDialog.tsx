@@ -378,6 +378,31 @@ export default function EditShiftDialog({
     return duration >= 6;
   };
 
+  // 🔶 6시간 이상 시 자동 split
+  useEffect(() => {
+    if (!slot?.date || !editStart || !editEnd) return;
+    
+    const base = dayjs(slot.date);
+    const sDT = normalizeToBusinessDateTime(base, editStart.hour(), editStart.minute());
+    const eDT = normalizeToBusinessDateTime(base, editEnd.hour(), editEnd.minute());
+    const duration = eDT.diff(sDT, 'hour', true);
+    
+    // 6시간 이상이고 아직 분리되지 않은 경우 자동 분리
+    if (duration >= 6 && !isSeparated) {
+      const totalDuration = eDT.diff(sDT, 'minute');
+      if (totalDuration <= 0) return;
+
+      const breakStart = sDT.add(totalDuration / 2 - 15, 'minute');
+      const breakEnd = breakStart.add(30, 'minute');
+
+      setSessions([
+        { start: sDT, end: breakStart },
+        { start: breakEnd, end: eDT }
+      ]);
+      setIsSeparated(true);
+    }
+  }, [editStart, editEnd, slot?.date]);
+
   // Handle session separation
   const handleSeparate = () => {
     if (!slot?.date || !editStart || !editEnd) return;
