@@ -41,6 +41,7 @@ interface Employee {
   corp: string;
   eid: string;
   category: string;
+  managedCorps?: string[]; // 관리 가능한 매장 목록 (admin용)
   createdAt?: string;
 }
 
@@ -71,7 +72,8 @@ export default function EmployeeManagement() {
     userType: [] as string[],
     corp: '',
     eid: '',
-    category: ''
+    category: '',
+    managedCorps: [] as string[]
   });
 
   // 검색 관련 상태
@@ -225,6 +227,7 @@ export default function EmployeeManagement() {
       corp: employee.corp,
       eid: employee.eid,
       category: employee.category,
+      managedCorps: employee.managedCorps || [],
     });
     setOpenDialog(true);
   };
@@ -278,7 +281,8 @@ export default function EmployeeManagement() {
           userType: [],
           corp: '',
           eid: '',
-          category: ''
+          category: '',
+          managedCorps: []
         });
         fetchEmployees();
       }
@@ -288,7 +292,7 @@ export default function EmployeeManagement() {
   };
 
   const handleChange = (field: string, value: string | string[]) => {
-    if (field === 'userType') {
+    if (field === 'userType' || field === 'managedCorps') {
       setFormData(prev => ({ ...prev, [field]: Array.isArray(value) ? value : [value] }));
     } else {
       setFormData(prev => ({ ...prev, [field]: value as string }));
@@ -333,7 +337,8 @@ export default function EmployeeManagement() {
               userType: [],
               corp: '',
               eid: '',
-              category: ''
+              category: '',
+              managedCorps: []
             });
             setOpenDialog(true);
           }}
@@ -410,9 +415,9 @@ export default function EmployeeManagement() {
                 <TableCell>{employee.email}</TableCell>
                 <TableCell>{employee.position}</TableCell>
                 <TableCell>
-                  {Array.isArray(employee.userType) 
-                    ? employee.userType.join(', ').toLowerCase() 
-                    : String(employee.userType || '').toLowerCase()}
+                  {(employee.userType && employee.userType.length > 0)
+                    ? employee.userType.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(', ')
+                    : ''}
                 </TableCell>
                 <TableCell>{employee.corp}</TableCell>
                 <TableCell>{employee.eid}</TableCell>
@@ -490,15 +495,17 @@ export default function EmployeeManagement() {
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {(selected as string[]).map((value) => {
                       const role = userRoles.find(r => r.key.toLowerCase() === value);
+                      const displayName = role?.name || value;
                       return (
                         <Chip 
                           key={value} 
-                          label={role?.name.toLowerCase() || value} 
+                          label={displayName.charAt(0).toUpperCase() + displayName.slice(1).toLowerCase()} 
                           size="small"
                           onDelete={() => {
                             const newUserType = formData.userType.filter(type => type !== value);
                             handleChange('userType', newUserType);
                           }}
+                          onMouseDown={(e) => e.stopPropagation()}
                         />
                       );
                     })}
@@ -507,7 +514,7 @@ export default function EmployeeManagement() {
               >
                 {userRoles.map((role) => (
                   <MenuItem key={role._id} value={role.key.toLowerCase()}>
-                    {role.name.toLowerCase()}
+                    {role.name.charAt(0).toUpperCase() + role.name.slice(1).toLowerCase()}
                   </MenuItem>
                 ))}
               </Select>
@@ -537,6 +544,39 @@ export default function EmployeeManagement() {
               onChange={(e) => handleChange('category', e.target.value)}
               fullWidth
             />
+            
+            {/* Admin인 경우에만 Managed Corps 표시 */}
+            {formData.position === 'admin' && (
+              <FormControl fullWidth>
+                <InputLabel>Managed Corporations</InputLabel>
+                <Select
+                  multiple
+                  value={formData.managedCorps}
+                  onChange={(e) => handleChange('managedCorps', e.target.value as string[])}
+                  label="Managed Corporations"
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {(selected as string[]).length === 0 ? (
+                        <Chip label="All Corporations (Super Admin)" size="small" color="warning" />
+                      ) : (
+                        (selected as string[]).map((value) => (
+                          <Chip key={value} label={value} size="small" />
+                        ))
+                      )}
+                    </Box>
+                  )}
+                >
+                  {corporations.map((corp) => (
+                    <MenuItem key={corp._id} value={corp.name}>
+                      {corp.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Leave empty for Super Admin access to all corporations
+                </Typography>
+              </FormControl>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>

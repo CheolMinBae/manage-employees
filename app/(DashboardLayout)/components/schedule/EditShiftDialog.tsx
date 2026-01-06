@@ -19,6 +19,8 @@ interface TimeSlot {
   start: string;
   end: string;
   approved?: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
   userId: string;
   userType: string;
 }
@@ -707,8 +709,24 @@ export default function EditShiftDialog({
 
         <Stack spacing={2} mt={1}>
           <Alert severity="info" sx={{ mb: 2 }}>
-            Editing schedule for {slot?.date} (Business hours: {businessHoursLabel()})
+            Editing schedule for {slot?.date}
           </Alert>
+
+          {/* 승인 정보 표시 */}
+          {slot?.approved && (
+            <Alert 
+              severity="success" 
+              sx={{ mb: 2 }}
+              icon={<Box sx={{ display: 'flex', alignItems: 'center' }}>✅</Box>}
+            >
+              <Typography variant="body2">
+                Approved by <strong>{slot.approvedBy || 'Unknown'}</strong>
+                {slot.approvedAt && (
+                  <> on {dayjs(slot.approvedAt).format('MMM D, YYYY h:mm A')}</>
+                )}
+              </Typography>
+            </Alert>
+          )}
 
           {/* Always show manual edit UI */}
           <Box>

@@ -415,12 +415,15 @@ export default function WeeklyScheduleTable({
           keyword={filterProps.keyword}
           selectedNames={filterProps.selectedNames}
           selectedPositions={filterProps.selectedPositions}
+          selectedCategories={filterProps.selectedCategories}
           uniqueNames={filterProps.uniqueNames}
           uniquePositions={filterProps.uniquePositions}
+          uniqueCategories={filterProps.uniqueCategories}
           onFilterTypeChange={filterProps.handleFilterTypeChange}
           onKeywordChange={filterProps.setKeyword}
           onSelectedNamesChange={filterProps.setSelectedNames}
           onSelectedPositionsChange={filterProps.setSelectedPositions}
+          onSelectedCategoriesChange={filterProps.setSelectedCategories}
           onSearch={filterProps.handleSearch}
           onClear={filterProps.handleClear}
           onKeywordKeyDown={filterProps.handleKeywordKeyDown}

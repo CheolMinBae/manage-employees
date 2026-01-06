@@ -18,16 +18,19 @@ interface FilterProps {
   keyword: string;
   selectedNames: string[];
   selectedPositions: string[];
+  selectedCategories: string[];
   
   // Data
   uniqueNames: string[];
   uniquePositions: string[];
+  uniqueCategories: string[];
   
   // Handlers
   onFilterTypeChange: (type: FilterType) => void;
   onKeywordChange: (keyword: string) => void;
   onSelectedNamesChange: (names: string[]) => void;
   onSelectedPositionsChange: (positions: string[]) => void;
+  onSelectedCategoriesChange: (categories: string[]) => void;
   onSearch: () => void;
   onClear: () => void;
   onKeywordKeyDown: (e: React.KeyboardEvent) => void;
@@ -38,12 +41,15 @@ export default function Filter({
   keyword,
   selectedNames,
   selectedPositions,
+  selectedCategories,
   uniqueNames,
   uniquePositions,
+  uniqueCategories,
   onFilterTypeChange,
   onKeywordChange,
   onSelectedNamesChange,
   onSelectedPositionsChange,
+  onSelectedCategoriesChange,
   onSearch,
   onClear,
   onKeywordKeyDown,
@@ -112,6 +118,30 @@ export default function Filter({
                 {...params}
                 label="Select Positions"
                 placeholder="Choose positions..."
+              />
+            )}
+            sx={{ width: '100%' }}
+          />
+        ) : filterType === 'category' ? (
+          <Autocomplete
+            multiple
+            options={uniqueCategories}
+            value={selectedCategories}
+            onChange={(event, newValue) => onSelectedCategoriesChange(newValue)}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => (
+                <Chip
+                  label={option}
+                  size="small"
+                  {...getTagProps({ index })}
+                />
+              ))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Select Categories"
+                placeholder="Choose categories..."
               />
             )}
             sx={{ width: '100%' }}

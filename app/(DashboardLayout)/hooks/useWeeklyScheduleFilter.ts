@@ -26,6 +26,7 @@ interface UseWeeklyScheduleFilterReturn {
   keyword: string;
   selectedNames: string[];
   selectedPositions: string[];
+  selectedCategories: string[];
   trigger: number;
   sortField: SortField;
   sortDirection: SortDirection;
@@ -33,6 +34,7 @@ interface UseWeeklyScheduleFilterReturn {
   // Computed values
   uniqueNames: string[];
   uniquePositions: string[];
+  uniqueCategories: string[];
   filteredData: UserSchedule[];
   
   // Handlers
@@ -40,6 +42,7 @@ interface UseWeeklyScheduleFilterReturn {
   setKeyword: (keyword: string) => void;
   setSelectedNames: (names: string[]) => void;
   setSelectedPositions: (positions: string[]) => void;
+  setSelectedCategories: (categories: string[]) => void;
   handleSearch: () => void;
   handleClear: () => void;
   handleFilterTypeChange: (type: FilterType) => void;
@@ -56,6 +59,7 @@ export const useWeeklyScheduleFilter = ({
   const [keyword, setKeyword] = useState('');
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [trigger, setTrigger] = useState(0);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -71,6 +75,11 @@ export const useWeeklyScheduleFilter = ({
       Array.isArray(user.position) ? user.position : [user.position]
     );
     return Array.from(new Set(allPositions)).filter(Boolean).sort();
+  }, [scheduleData]);
+
+  // 고유한 카테고리 목록 생성
+  const uniqueCategories = useMemo(() => {
+    return Array.from(new Set(scheduleData.map(user => user.category))).filter(Boolean).sort();
   }, [scheduleData]);
 
   // 필터링된 데이터
@@ -90,6 +99,12 @@ export const useWeeklyScheduleFilter = ({
           const userPositions = Array.isArray(u.position) ? u.position : [u.position];
           return selectedPositions.some(pos => userPositions.includes(pos));
         });
+      }
+    }
+    // Category 필터의 경우 멀티선택 사용
+    else if (filterType === 'category') {
+      if (selectedCategories.length > 0) {
+        filtered = filtered.filter((u) => selectedCategories.includes(u.category));
       }
     }
     // 다른 필터의 경우 기존 키워드 검색 사용
@@ -121,7 +136,7 @@ export const useWeeklyScheduleFilter = ({
     });
     
     return filtered;
-  }, [scheduleData, filterType, keyword, selectedNames, selectedPositions, userPosition, userName, trigger, sortField, sortDirection]);
+  }, [scheduleData, filterType, keyword, selectedNames, selectedPositions, selectedCategories, userPosition, userName, trigger, sortField, sortDirection]);
 
   // 핸들러들
   const handleSearch = () => {
@@ -133,6 +148,7 @@ export const useWeeklyScheduleFilter = ({
   const handleClear = () => {
     setSelectedNames([]);
     setSelectedPositions([]);
+    setSelectedCategories([]);
     setKeyword('');
     setTrigger((t) => t + 1);
   };
@@ -141,6 +157,7 @@ export const useWeeklyScheduleFilter = ({
     setFilterType(type);
     setSelectedNames([]); // 필터 타입 변경 시 선택된 이름들 초기화
     setSelectedPositions([]); // 필터 타입 변경 시 선택된 포지션들 초기화
+    setSelectedCategories([]); // 필터 타입 변경 시 선택된 카테고리들 초기화
     setKeyword(''); // 키워드도 초기화
   };
 
@@ -167,6 +184,7 @@ export const useWeeklyScheduleFilter = ({
     keyword,
     selectedNames,
     selectedPositions,
+    selectedCategories,
     trigger,
     sortField,
     sortDirection,
@@ -174,6 +192,7 @@ export const useWeeklyScheduleFilter = ({
     // Computed values
     uniqueNames,
     uniquePositions,
+    uniqueCategories,
     filteredData,
     
     // Handlers
@@ -181,6 +200,7 @@ export const useWeeklyScheduleFilter = ({
     setKeyword,
     setSelectedNames,
     setSelectedPositions,
+    setSelectedCategories,
     handleSearch,
     handleClear,
     handleFilterTypeChange,

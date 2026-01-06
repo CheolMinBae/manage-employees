@@ -8,6 +8,8 @@ const scheduleSchema = new Schema({
   start: { type: String, required: true }, // HH:mm
   end: { type: String, required: true },   // HH:mm
   approved: { type: Boolean, default: false },
+  approvedBy: { type: String, default: null }, // 승인한 사람 이름
+  approvedAt: { type: Date, default: null },   // 승인 시간
 }, { timestamps: true });
 
 export default mongoose.models.Schedule || mongoose.model('Schedule', scheduleSchema);

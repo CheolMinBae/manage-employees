@@ -82,6 +82,7 @@ interface TimeSelectionDialogProps {
   selectedHour: number;
   userId: string;
   selectedDate: Date;
+  dragEndHour?: number; // 드래그로 선택한 끝 시간
 }
 
 function TimeSelectionDialog({
@@ -92,7 +93,8 @@ function TimeSelectionDialog({
   employeeName,
   selectedHour,
   userId,
-  selectedDate
+  selectedDate,
+  dragEndHour
 }: TimeSelectionDialogProps) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.position === 'admin';
@@ -108,16 +110,25 @@ function TimeSelectionDialog({
 
   useEffect(() => {
     if (open) {
-      // 기본값을 선택된 시간으로 설정
-      const hourStr = selectedHour.toString().padStart(2, '0');
-      setStartTime(`${hourStr}:00`);
-      setEndTime(`${(selectedHour + 1).toString().padStart(2, '0')}:00`);
+      // 드래그로 선택한 경우 범위 사용, 아니면 단일 시간
+      const startHour = dragEndHour !== undefined 
+        ? Math.min(selectedHour, dragEndHour) 
+        : selectedHour;
+      const endHourValue = dragEndHour !== undefined 
+        ? Math.max(selectedHour, dragEndHour) + 1 
+        : selectedHour + 1;
+      
+      const startHourStr = startHour.toString().padStart(2, '0');
+      const endHourStr = endHourValue.toString().padStart(2, '0');
+      
+      setStartTime(`${startHourStr}:00`);
+      setEndTime(`${endHourStr}:00`);
 
       // 템플릿 상태 초기화
       setUseTemplate(false);
       setSelectedTemplate('');
     }
-  }, [open, selectedHour]);
+  }, [open, selectedHour, dragEndHour]);
 
   // Fetch templates (admin only)
   useEffect(() => {
@@ -326,7 +337,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   const [toastMessage, setToastMessage] = useState('');
   const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<{ userId: string; name: string; hour: number } | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<{ userId: string; name: string; hour: number; dragEndHour?: number } | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
 
@@ -370,6 +381,12 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   const [editDialogInfo, setEditDialogInfo] = useState<{ employee: EmployeeSchedule; hour: number } | null>(null);
   const [editScheduleData, setEditScheduleData] = useState<any>(null);
 
+  // 드래그 스케줄 지정 상태
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ userId: string; hour: number; name: string } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ hour: number } | null>(null);
+  const [dragSelection, setDragSelection] = useState<{ userId: string; startHour: number; endHour: number; name: string } | null>(null);
+
   const fetchHourlyData = async (isRefresh = false) => {
     if (isRefresh) {
       setRefreshing(true);
@@ -411,9 +428,26 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   });
 
   // 정렬된 직원 데이터
+  // 그룹 우선순위: 승인된 직원(0) → 승인 안 된 직원(1) → OFF 직원(2)
+  const getEmployeeGroup = (employee: EmployeeSchedule, hour: number) => {
+    const status = employee.hourlyStatus?.[hour];
+    if (!status?.isWorking || !status?.workingRatio) return 2; // OFF
+    if (status.approved === true) return 0; // 승인됨
+    return 1; // 승인 안 됨
+  };
+
   const sortedEmployees = [...filteredEmployees].sort((a, b) => {
     if (!sortConfig.hour || !sortConfig.direction) return 0;
 
+    const aGroup = getEmployeeGroup(a, sortConfig.hour);
+    const bGroup = getEmployeeGroup(b, sortConfig.hour);
+
+    // 1순위: 그룹 순서로 정렬 (승인 → 미승인 → OFF)
+    if (aGroup !== bGroup) {
+      return aGroup - bGroup;
+    }
+
+    // 2순위: 같은 그룹 내에서 workingRatio로 정렬 (높은 값이 위로)
     const aWorkingRatio = a.hourlyStatus?.[sortConfig.hour]?.workingRatio || 0;
     const bWorkingRatio = b.hourlyStatus?.[sortConfig.hour]?.workingRatio || 0;
 
@@ -518,6 +552,60 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   };
 
   const handleCloseToast = () => setToastOpen(false);
+
+  // 드래그 이벤트 핸들러
+  const handleDragStart = (userId: string, hour: number, name: string) => {
+    setIsDragging(true);
+    setDragStart({ userId, hour, name });
+    setDragEnd({ hour });
+  };
+
+  const handleDragEnter = (hour: number) => {
+    if (isDragging && dragStart) {
+      setDragEnd({ hour });
+    }
+  };
+
+  const handleDragEndAction = async () => {
+    if (!isDragging || !dragStart || !dragEnd) {
+      setIsDragging(false);
+      setDragStart(null);
+      setDragEnd(null);
+      return;
+    }
+
+    const startHour = Math.min(dragStart.hour, dragEnd.hour);
+    const endHour = Math.max(dragStart.hour, dragEnd.hour);
+
+    setDragSelection({
+      userId: dragStart.userId,
+      startHour,
+      endHour: endHour + 1,
+      name: dragStart.name
+    });
+
+    // 다이얼로그 열기 (드래그 범위 전달)
+    setSelectedEmployee({
+      userId: dragStart.userId,
+      name: dragStart.name,
+      hour: startHour,
+      dragEndHour: endHour
+    });
+    setDialogOpen(true);
+
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  const isDragSelected = (userId: string, hour: number) => {
+    if (!isDragging || !dragStart || !dragEnd) return false;
+    if (dragStart.userId !== userId) return false;
+    
+    const minHour = Math.min(dragStart.hour, dragEnd.hour);
+    const maxHour = Math.max(dragStart.hour, dragEnd.hour);
+    return hour >= minHour && hour <= maxHour;
+  };
 
   const handleRefresh = () => {
     fetchHourlyData(true);
@@ -836,7 +924,16 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         </Box>
       )}
 
-      <TableContainer component={Paper}>
+      <TableContainer 
+        component={Paper}
+        onMouseUp={handleDragEndAction}
+        onMouseLeave={() => {
+          if (isDragging) {
+            handleDragEndAction();
+          }
+        }}
+        sx={{ userSelect: 'none' }}
+      >
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -1078,14 +1175,33 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                         </Tooltip>
                       ) : (
                         (isAdmin || employee.name === userName) ? (
-                          <Tooltip title="Add shift" placement="top">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleOpenDialog(employee.userId, hour, employee.name)}
-                              sx={{ width: 20, height: 20, color: '#2196f3', '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2' } }}
+                          <Tooltip title="Drag to select time range or click to add shift" placement="top">
+                            <Box
+                              sx={{
+                                width: '100%',
+                                height: '100%',
+                                minHeight: 24,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                backgroundColor: isDragSelected(employee.userId, hour) ? 'rgba(33, 150, 243, 0.3)' : 'transparent',
+                                borderRadius: 1,
+                                transition: 'background-color 0.1s',
+                                userSelect: 'none',
+                                '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)' }
+                              }}
+                              onMouseDown={() => handleDragStart(employee.userId, hour, employee.name)}
+                              onMouseEnter={() => handleDragEnter(hour)}
+                              onMouseUp={handleDragEndAction}
+                              onClick={(e) => {
+                                if (!isDragging) {
+                                  handleOpenDialog(employee.userId, hour, employee.name);
+                                }
+                              }}
                             >
-                              <AddIcon sx={{ fontSize: '0.8rem' }} />
-                            </IconButton>
+                              <AddIcon sx={{ fontSize: '0.8rem', color: '#2196f3' }} />
+                            </Box>
                           </Tooltip>
                         ) : (
                           <Typography variant="caption" sx={{ fontSize: '0.75rem', color: '#ccc' }}>
@@ -1135,7 +1251,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           Individual: 1 = Full hour • 0.x = Partial hour • - = Not working
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-          💡 Click hour headers to sort by working hours: 1st click = Most working first, 2nd click = Least working first, 3rd click = Reset
+          💡 Click hour headers to sort | 🖱️ Drag empty cells to select time range
         </Typography>
       </Box>
 
@@ -1149,6 +1265,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           selectedHour={selectedEmployee.hour}
           userId={selectedEmployee.userId}
           selectedDate={selectedDate}
+          dragEndHour={selectedEmployee.dragEndHour}
         />
       )}
 
@@ -1168,6 +1285,8 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
             end: editScheduleData.end,
             date: data?.date || '',
             approved: editScheduleData.approved || false,
+            approvedBy: editScheduleData.approvedBy,
+            approvedAt: editScheduleData.approvedAt,
           }}
           fetchSchedules={fetchHourlyData}
         />

@@ -42,7 +42,7 @@ export async function GET(req: Request) {
 // POST: 새로운 사용자 생성
 export async function POST(req: Request) {
   try {
-    const { name, email, password, position, userType, corp, eid, category } = await req.json();
+    const { name, email, password, position, userType, corp, eid, category, managedCorps } = await req.json();
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -71,6 +71,7 @@ export async function POST(req: Request) {
       corp,
       eid,
       category,
+      managedCorps: Array.isArray(managedCorps) ? managedCorps : [], // 관리 가능한 매장 목록
       isFirstLogin: true, // 새 사용자는 최초 로그인 상태
     });
 
@@ -91,7 +92,7 @@ export async function PUT(req: Request) {
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
-    const { name, email, position, userType, corp, eid, category, password } = await req.json();
+    const { name, email, position, userType, corp, eid, category, password, managedCorps } = await req.json();
 
     if (!id) {
       return NextResponse.json(
@@ -150,7 +151,8 @@ export async function PUT(req: Request) {
         userType: Array.isArray(userType) ? userType : (userType ? [userType] : []), 
         corp, 
         eid, 
-        category 
+        category,
+        managedCorps: Array.isArray(managedCorps) ? managedCorps : []
       },
       { new: true }
     );

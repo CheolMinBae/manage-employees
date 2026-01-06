@@ -12,6 +12,8 @@ import {
   isWithinInterval,
 } from 'date-fns';
 import { WEEK_OPTIONS } from '@/constants/dateConfig';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/libs/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -531,6 +533,17 @@ export async function PUT(req: NextRequest) {
           { status: 400 }
         );
       }
+    }
+
+    // ✅ 승인 상태 변경 시 승인자 정보 기록
+    if (updates.approved === true && existingSchedule.approved !== true) {
+      const session = await getServerSession(authOptions);
+      updates.approvedBy = session?.user?.name || 'Unknown';
+      updates.approvedAt = new Date();
+    } else if (updates.approved === false) {
+      // 승인 취소 시 승인 정보 초기화
+      updates.approvedBy = null;
+      updates.approvedAt = null;
     }
 
     const updated = await Schedule.findByIdAndUpdate(id, updates, { new: true });
