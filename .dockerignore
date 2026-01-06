@@ -11,3 +11,5 @@ README.md
 Dockerfile
 docker-compose.yml 
 certbot/
+src/app_backup_*
+src/app/
