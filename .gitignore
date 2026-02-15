@@ -9,6 +9,7 @@ node_modules/
 *.txt
 *.log
 *.md
+!REFACTOR.md
 *.pdf
 *.docx
 *.doc
