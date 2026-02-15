@@ -4,7 +4,7 @@ import { ThemeProvider } from '@mui/material/styles'
 import { CssBaseline } from '@mui/material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import theme from './theme'
+import { baselightTheme as theme } from './theme/DefaultColors'
 
 // Mock session data
 export const mockSession = {
