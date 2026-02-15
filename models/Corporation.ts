@@ -3,8 +3,10 @@ const { Schema, model, models } = mongoose;
 
 export interface ICorporation {
   _id: mongoose.Types.ObjectId;
-  name: string; // ex) corp1, corp2
+  name: string;
   description?: string;
+  businessDayStartHour?: number;
+  businessDayEndHour?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -13,6 +15,8 @@ const corporationSchema = new Schema<ICorporation>(
   {
     name: { type: String, required: true, unique: true },
     description: { type: String },
+    businessDayStartHour: { type: Number, default: 8 },
+    businessDayEndHour: { type: Number, default: 24 },
   },
   {
     timestamps: true,

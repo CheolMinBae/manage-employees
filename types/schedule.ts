@@ -1,22 +1,53 @@
 export interface Schedule {
-  id: string;
+  _id: string;
   userId: string;
-  date: Date;
-  start: string;
-  end: string;
+  userType: string;
+  date: string; // YYYY-MM-DD
+  start: string; // HH:mm
+  end: string; // HH:mm
   approved: boolean;
+  approvedBy?: string | null;
+  approvedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
-  position: string;
+  password: string;
+  position: 'employee' | 'admin';
+  status: string;
+  corp?: string;
+  eid?: string;
+  category?: string;
+  userType?: string[];
+  isFirstLogin?: boolean;
+  managedCorps?: string[];
+  permissions?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TimeSlot {
+  _id: string;
+  start: string;
+  end: string;
+  status: 'approved' | 'pending';
+}
+
+export interface DailyShift {
+  date: string;
+  slots: TimeSlot[];
+}
+
+export interface UserSchedule {
+  userId: string;
+  name: string;
+  position: string | string[];
   corp: string;
   eid: string | number;
   category: string;
-  createdAt: Date;
-  updatedAt: Date;
-} 
+  shifts: DailyShift[];
+}
