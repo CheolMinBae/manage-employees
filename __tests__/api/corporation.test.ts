@@ -1,8 +1,6 @@
 import { GET, POST, PUT, DELETE } from '@/app/api/corporation/route'
 
-jest.mock('@libs/mongodb', () => ({
-  connectDB: jest.fn(),
-}))
+jest.mock('@libs/db', () => jest.fn())
 
 const mockCorp = {
   _id: 'corp-id-1',

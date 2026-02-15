@@ -1,6 +1,6 @@
 // src/app/api/auth/register/route.ts
 import { NextResponse } from 'next/server';
-import { connectDB } from '@libs/mongodb';
+import dbConnect from '@libs/db';
 import SignupUser from '@models/SignupUser';
 import bcrypt from 'bcryptjs';
 
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     // 이메일 중복 검사
     const existingUser = await SignupUser.findOne({ email });

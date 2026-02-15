@@ -1,9 +1,7 @@
 import { GET, POST, PUT, DELETE } from '@/app/api/users/route'
 
 // Mock DB connection
-jest.mock('@libs/mongodb', () => ({
-  connectDB: jest.fn(),
-}))
+jest.mock('@libs/db', () => jest.fn())
 
 // Mock models
 const mockUser = {

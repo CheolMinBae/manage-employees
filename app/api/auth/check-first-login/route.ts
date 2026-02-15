@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@libs/mongodb';
+import dbConnect from '@libs/db';
 import SignupUser from '@models/SignupUser';
 
 // ✅ 동적 서버 라우트로 강제 지정 (정적 빌드 방지)
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     const user = await SignupUser.findOne({ email });
     if (!user) {

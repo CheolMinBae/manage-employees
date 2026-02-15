@@ -1,6 +1,6 @@
 // 2025.12.18-code updated. 
 import { NextResponse } from 'next/server';
-import { connectDB } from '@libs/mongodb';
+import dbConnect from '@libs/db';
 import Corporation from '@models/Corporation';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET() {
   try {
-    await connectDB();
+    await dbConnect();
     const corporations = await Corporation.find({});
     return NextResponse.json(corporations, { status: 200 });
   } catch (error: any) {
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     // 이름 중복 검사
     const existingCorp = await Corporation.findOne({ name });
@@ -95,7 +95,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     // 이름 중복 검사 (자기 자신 제외)
     const existingCorp = await Corporation.findOne({
@@ -153,7 +153,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     const deletedCorporation = await Corporation.findByIdAndDelete(_id);
 

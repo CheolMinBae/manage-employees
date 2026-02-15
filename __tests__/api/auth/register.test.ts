@@ -1,8 +1,6 @@
 import { POST } from '@/app/api/auth/register/route'
 
-jest.mock('@libs/mongodb', () => ({
-  connectDB: jest.fn(),
-}))
+jest.mock('@libs/db', () => jest.fn())
 
 jest.mock('bcryptjs', () => ({
   hash: jest.fn().mockResolvedValue('hashed-password'),

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@libs/mongodb';
+import dbConnect from '@libs/db';
 import SignupUser from '@models/SignupUser';
 import Schedule from '@models/Schedule';
 import bcrypt from 'bcryptjs';
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
 
-    await connectDB();
+    await dbConnect();
 
     if (id) {
       // 특정 사용자 조회
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     // 이메일 중복 검사
     const existingUser = await SignupUser.findOne({ email });
@@ -101,7 +101,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     // 패스워드만 업데이트하는 경우 (패스워드 리셋)
     if (password && !name && !email) {
@@ -187,7 +187,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     // 사용자 존재 확인
     const userToDelete = await SignupUser.findById(id);

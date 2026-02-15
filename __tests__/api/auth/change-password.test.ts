@@ -1,8 +1,6 @@
 import { POST } from '@/app/api/auth/change-password/route'
 
-jest.mock('@libs/mongodb', () => ({
-  connectDB: jest.fn(),
-}))
+jest.mock('@libs/db', () => jest.fn())
 
 jest.mock('bcryptjs', () => ({
   compare: jest.fn(),

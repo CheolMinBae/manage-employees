@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@libs/mongodb';
+import dbConnect from '@libs/db';
 import UserRole from '@models/UserRole';
 
 export const dynamic = 'force-dynamic';
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 // GET: 모든 사용자 역할 조회
 export async function GET() {
   try {
-    await connectDB();
+    await dbConnect();
     const userRoles = await UserRole.find({});
     return NextResponse.json(userRoles, { status: 200 });
   } catch (error: any) {
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     // key 중복 검사
     const existingRole = await UserRole.findOne({ key });
@@ -72,7 +72,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     // key 중복 검사 (자기 자신 제외)
     const existingRole = await UserRole.findOne({ key, _id: { $ne: _id } });
@@ -118,7 +118,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     const deletedUserRole = await UserRole.findByIdAndDelete(_id);
 
