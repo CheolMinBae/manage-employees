@@ -27,6 +27,8 @@ interface Corporation {
   _id: string;
   name: string;
   description?: string;
+  businessDayStartHour?: number;
+  businessDayEndHour?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -37,7 +39,9 @@ export default function CorporationManagement() {
   const [editingCorporation, setEditingCorporation] = useState<Corporation | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    description: '',
+    businessDayStartHour: 8,
+    businessDayEndHour: 24,
   });
 
   const fetchCorporations = async () => {
@@ -60,7 +64,9 @@ export default function CorporationManagement() {
     setEditingCorporation(corporation);
     setFormData({
       name: corporation.name,
-      description: corporation.description || ''
+      description: corporation.description || '',
+      businessDayStartHour: corporation.businessDayStartHour ?? 8,
+      businessDayEndHour: corporation.businessDayEndHour ?? 24,
     });
     setOpenDialog(true);
   };
@@ -100,7 +106,9 @@ export default function CorporationManagement() {
         setEditingCorporation(null);
         setFormData({
           name: '',
-          description: ''
+          description: '',
+          businessDayStartHour: 8,
+          businessDayEndHour: 24,
         });
         fetchCorporations();
       }
@@ -128,7 +136,9 @@ export default function CorporationManagement() {
             setEditingCorporation(null);
             setFormData({
               name: '',
-              description: ''
+              description: '',
+              businessDayStartHour: 8,
+              businessDayEndHour: 24,
             });
             setOpenDialog(true);
           }}
@@ -143,6 +153,7 @@ export default function CorporationManagement() {
             <TableRow>
               <TableCell>Name</TableCell>
               <TableCell>Full Name</TableCell>
+              <TableCell>Business Hours</TableCell>
               <TableCell>Created At</TableCell>
               <TableCell>Updated At</TableCell>
               <TableCell>Actions</TableCell>
@@ -155,6 +166,9 @@ export default function CorporationManagement() {
                   <Typography fontWeight="bold">{corporation.name}</Typography>
                 </TableCell>
                 <TableCell>{corporation.description || '-'}</TableCell>
+                <TableCell>
+                  {(corporation.businessDayStartHour ?? 8)}:00 – {(corporation.businessDayEndHour ?? 24)}:00
+                </TableCell>
                 <TableCell>{formatDate(corporation.createdAt)}</TableCell>
                 <TableCell>{formatDate(corporation.updatedAt)}</TableCell>
                 <TableCell>
@@ -192,6 +206,30 @@ export default function CorporationManagement() {
               multiline
               rows={3}
             />
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Business Start Hour"
+                type="number"
+                value={formData.businessDayStartHour || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, businessDayStartHour: e.target.value === '' ? 0 : Number(e.target.value) }))}
+                onBlur={(e) => { if (e.target.value === '') setFormData(prev => ({ ...prev, businessDayStartHour: 0 })); }}
+                fullWidth
+                inputProps={{ min: 0, max: 23 }}
+                placeholder="0"
+                helperText="0 = 12AM, 8 = 8AM"
+              />
+              <TextField
+                label="Business End Hour"
+                type="number"
+                value={formData.businessDayEndHour || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, businessDayEndHour: e.target.value === '' ? 0 : Number(e.target.value) }))}
+                onBlur={(e) => { if (e.target.value === '') setFormData(prev => ({ ...prev, businessDayEndHour: 24 })); }}
+                fullWidth
+                inputProps={{ min: 1, max: 48 }}
+                placeholder="24"
+                helperText="24 = midnight, 25+ = next day"
+              />
+            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions>

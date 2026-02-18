@@ -26,6 +26,7 @@ export interface User {
   isFirstLogin?: boolean;
   managedCorps?: string[];
   permissions?: string[];
+  hourlyRate?: number;
   createdAt: Date;
   updatedAt: Date;
 }

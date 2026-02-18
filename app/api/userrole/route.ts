@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
 import UserRole from '@models/UserRole';
+import { apiError, apiServerError } from '@libs/api-response';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,12 +11,8 @@ export async function GET() {
     await dbConnect();
     const userRoles = await UserRole.find({});
     return NextResponse.json(userRoles, { status: 200 });
-  } catch (error: any) {
-    console.error('Failed to fetch user roles:', error);
-    return NextResponse.json(
-      { message: 'Server error: ' + error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiServerError('Failed to fetch user roles', error);
   }
 }
 
@@ -25,10 +22,7 @@ export async function POST(req: Request) {
     const { key, name, description } = await req.json();
 
     if (!key || !name) {
-      return NextResponse.json(
-        { message: 'Key and name are required.' },
-        { status: 400 }
-      );
+      return apiError('Key and name are required.');
     }
 
     await dbConnect();
@@ -36,10 +30,7 @@ export async function POST(req: Request) {
     // key 중복 검사
     const existingRole = await UserRole.findOne({ key });
     if (existingRole) {
-      return NextResponse.json(
-        { message: 'Role key already exists.' },
-        { status: 409 }
-      );
+      return apiError('Role key already exists.', 409);
     }
 
     const newUserRole = new UserRole({
@@ -51,12 +42,8 @@ export async function POST(req: Request) {
     await newUserRole.save();
 
     return NextResponse.json(newUserRole, { status: 201 });
-  } catch (error: any) {
-    console.error('Failed to create user role:', error);
-    return NextResponse.json(
-      { message: 'Server error: ' + error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiServerError('Failed to create user role', error);
   }
 }
 
@@ -66,10 +53,7 @@ export async function PUT(req: Request) {
     const { _id, key, name, description } = await req.json();
 
     if (!_id || !key || !name) {
-      return NextResponse.json(
-        { message: 'ID, key, and name are required.' },
-        { status: 400 }
-      );
+      return apiError('ID, key, and name are required.');
     }
 
     await dbConnect();
@@ -77,10 +61,7 @@ export async function PUT(req: Request) {
     // key 중복 검사 (자기 자신 제외)
     const existingRole = await UserRole.findOne({ key, _id: { $ne: _id } });
     if (existingRole) {
-      return NextResponse.json(
-        { message: 'Role key already exists.' },
-        { status: 409 }
-      );
+      return apiError('Role key already exists.', 409);
     }
 
     const updatedUserRole = await UserRole.findByIdAndUpdate(
@@ -90,19 +71,12 @@ export async function PUT(req: Request) {
     );
 
     if (!updatedUserRole) {
-      return NextResponse.json(
-        { message: 'User role not found.' },
-        { status: 404 }
-      );
+      return apiError('User role not found.', 404);
     }
 
     return NextResponse.json(updatedUserRole, { status: 200 });
-  } catch (error: any) {
-    console.error('Failed to update user role:', error);
-    return NextResponse.json(
-      { message: 'Server error: ' + error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiServerError('Failed to update user role', error);
   }
 }
 
@@ -112,10 +86,7 @@ export async function DELETE(req: Request) {
     const { _id } = await req.json();
 
     if (!_id) {
-      return NextResponse.json(
-        { message: 'ID is required.' },
-        { status: 400 }
-      );
+      return apiError('ID is required.');
     }
 
     await dbConnect();
@@ -123,21 +94,14 @@ export async function DELETE(req: Request) {
     const deletedUserRole = await UserRole.findByIdAndDelete(_id);
 
     if (!deletedUserRole) {
-      return NextResponse.json(
-        { message: 'User role not found.' },
-        { status: 404 }
-      );
+      return apiError('User role not found.', 404);
     }
 
     return NextResponse.json(
       { message: 'User role deleted successfully' },
       { status: 200 }
     );
-  } catch (error: any) {
-    console.error('Failed to delete user role:', error);
-    return NextResponse.json(
-      { message: 'Server error: ' + error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiServerError('Failed to delete user role', error);
   }
-} 
+}

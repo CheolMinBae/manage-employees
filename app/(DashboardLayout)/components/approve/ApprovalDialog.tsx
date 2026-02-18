@@ -189,6 +189,14 @@ const ApprovalDialog = ({
           );
           
           setUserRoles(filteredRoles);
+
+          // selectedUserType이 비어있거나 매칭 안 되면 첫 번째 역할 자동 선택
+          if (filteredRoles.length > 0) {
+            const hasMatch = filteredRoles.some((r: UserRole) => r.key === selectedUserType);
+            if (!selectedUserType || !hasMatch) {
+              setSelectedUserType(filteredRoles[0].key);
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching user roles:', error);
@@ -351,7 +359,7 @@ const ApprovalDialog = ({
         {/* UserType Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
           <Tabs 
-            value={selectedUserType} 
+            value={userRoles.some(r => r.key === selectedUserType) ? selectedUserType : false} 
             onChange={(e, newValue) => setSelectedUserType(newValue)}
             variant="scrollable"
             scrollButtons="auto"

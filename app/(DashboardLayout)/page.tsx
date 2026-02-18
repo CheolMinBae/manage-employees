@@ -1,16 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Grid, Box, Tabs, Tab } from '@mui/material';
+import { Grid, Box, Tabs, Tab, CircularProgress, Typography } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import PageContainer from '@/app/(DashboardLayout)/components/container/PageContainer';
 import WeeklyScheduleTable from './components/dashboard/WeeklyScheduleTable';
 import HourlyStaffingTable from './components/dashboard/HourlyStaffingTable';
 import { useProtectedSession } from './hooks/useProtectedSession';
-import { startOfWeek, format } from 'date-fns';
+import dayjs from 'dayjs';
+import '@/constants/dateConfig'; // dayjs 플러그인 초기화
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { WEEK_OPTIONS } from '@/constants/dateConfig';
 
 // 👉 추가
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -55,7 +55,7 @@ export default function Dashboard() {
     scheduleData: any[];
   } | null>(null);
 
-  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), WEEK_OPTIONS));
+  const [weekStart, setWeekStart] = useState<Date>(dayjs().startOf('week').toDate());
 
   // 탭 상태
   const [tabValue, setTabValue] = useState(0);
@@ -68,7 +68,7 @@ export default function Dashboard() {
   const fetchData = async () => {
     const queryParams = new URLSearchParams({
       mode: 'dashboard',
-      weekStart: format(weekStart, 'yyyy-MM-dd'),
+      weekStart: dayjs(weekStart).format('YYYY-MM-DD'),
     });
 
     const res = await fetch(`/api/schedules?${queryParams.toString()}`, {
@@ -111,7 +111,12 @@ export default function Dashboard() {
     }
   }, [searchParams]);
 
-  if (!data) return <div>Loading...</div>;
+  if (!data) return (
+    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="60vh" gap={2}>
+      <CircularProgress size={48} />
+      <Typography variant="body2" color="text.secondary">Loading dashboard...</Typography>
+    </Box>
+  );
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>

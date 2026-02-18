@@ -4,8 +4,7 @@ import Schedule from '@models/Schedule';
 import SignupUser from '@models/SignupUser';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
-import { startOfWeek, endOfWeek, format as formatDate, parseISO } from 'date-fns';
-import { WEEK_OPTIONS } from '@/constants/dateConfig';
+import '@/constants/dateConfig'; // dayjs 플러그인 초기화
 import ExcelJS from 'exceljs';
 import { Types } from 'mongoose';
 
@@ -49,14 +48,11 @@ export async function GET(req: NextRequest) {
     }
 
     // 날짜 범위 생성
-    const weekStartDate = parseISO(weekStartParam);
-    const actualWeekStart = startOfWeek(weekStartDate, WEEK_OPTIONS);
+    const actualWeekStart = dayjs(weekStartParam).startOf('week');
 
     const weekDates: string[] = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(actualWeekStart);
-      d.setDate(d.getDate() + i);
-      weekDates.push(formatDate(d, 'yyyy-MM-dd'));
+      weekDates.push(actualWeekStart.add(i, 'day').format('YYYY-MM-DD'));
     }
 
     // 사용자 목록 로드

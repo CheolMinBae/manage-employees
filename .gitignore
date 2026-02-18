@@ -22,3 +22,5 @@ certs/
 scripts/
 .env
 *.pem
+.cursor/
+tsconfig.tsbuildinfo

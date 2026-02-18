@@ -12,8 +12,8 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
-import { format, isWithinInterval, parseISO } from 'date-fns';
 import dayjs from 'dayjs';
+import '@/constants/dateConfig'; // dayjs 플러그인 초기화
 
 function getDurationColor(hours: number) {
   if (hours <= 3) return '#1976d2'; // 파랑
@@ -38,15 +38,13 @@ export default function ShiftList({
   return (
     <Stack spacing={3}>
       {weeks.map((week, wIdx) => {
-        const weekTitle = `${format(week.start, 'MMM d')} – ${format(week.end, 'MMM d')}`;
+        const weekTitle = `${dayjs(week.start).format('MMM D')} – ${dayjs(week.end).format('MMM D')}`;
 
         const weekShifts = scheduleList
-          .filter(s =>
-            isWithinInterval(parseISO(s.date), {
-              start: week.start,
-              end: week.end,
-            })
-          )
+          .filter(s => {
+            const d = dayjs(s.date);
+            return d.isBetween(dayjs(week.start), dayjs(week.end), 'day', '[]');
+          })
           .sort((a, b) => a.date.localeCompare(b.date));
 
         return (

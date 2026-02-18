@@ -19,7 +19,6 @@
     "docdb:seed": "node scripts/seed-database.js"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "^2.9.1",
     "@emotion/cache": "11.11.0",
     "@emotion/react": "11.11.1",
     "@emotion/server": "11.11.0",
@@ -30,7 +29,6 @@
     "@mui/system": "^7.1.0",
     "@mui/x-date-pickers": "^8.3.1",
     "@mui/x-date-pickers-pro": "^8.3.1",
-    "@prisma/client": "^6.10.1",
     "@tabler/icons-react": "2.30.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "20.4.5",
@@ -72,7 +70,6 @@
     "@types/react-date-range": "^1.4.10",
     "jest": "^30.0.3",
     "jest-environment-jsdom": "^30.0.2",
-    "prisma": "^6.10.1",
     "ts-jest": "^29.4.0"
   }
 }

@@ -18,7 +18,7 @@ import {
   TextField,
 } from '@mui/material';
 import { DateRange } from 'react-date-range';
-import { format } from 'date-fns';
+import dayjs from 'dayjs';
 import { useState, useRef } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -58,7 +58,7 @@ const FilterControls = ({
 
   const selectedStart = dateRange[0].startDate;
   const selectedEnd = dateRange[0].endDate;
-  const formattedRange = `${format(selectedStart, 'MMM d')} – ${format(selectedEnd, 'MMM d')}`;
+  const formattedRange = `${dayjs(selectedStart).format('MMM D')} – ${dayjs(selectedEnd).format('MMM D')}`;
 
   return (
     <Grid container spacing={2} mb={3}>

@@ -189,9 +189,13 @@ describe('PUT /api/users', () => {
     expect(res.status).toBe(200)
     expect(SignupUser.findByIdAndUpdate).toHaveBeenCalledWith(
       'user-id-1',
-      expect.objectContaining({ password: 'newpass', isFirstLogin: true }),
+      expect.objectContaining({ isFirstLogin: true }),
       { new: true }
     )
+    // 비밀번호가 해시화되었는지 확인
+    const callArgs = (SignupUser.findByIdAndUpdate as jest.Mock).mock.calls[0][1]
+    expect(callArgs.password).not.toBe('newpass')
+    expect(callArgs.password).toMatch(/^\$2[aby]\$/) // bcrypt 해시 패턴
   })
 
   it('should return 409 if email conflicts with another user', async () => {

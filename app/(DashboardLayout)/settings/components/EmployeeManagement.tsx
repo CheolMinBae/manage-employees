@@ -42,6 +42,7 @@ interface Employee {
   eid: string;
   category: string;
   managedCorps?: string[]; // 관리 가능한 매장 목록 (admin용)
+  hourlyRate?: number;
   createdAt?: string;
 }
 
@@ -73,7 +74,8 @@ export default function EmployeeManagement() {
     corp: '',
     eid: '',
     category: '',
-    managedCorps: [] as string[]
+    managedCorps: [] as string[],
+    hourlyRate: 0,
   });
 
   // 검색 관련 상태
@@ -228,6 +230,7 @@ export default function EmployeeManagement() {
       eid: employee.eid,
       category: employee.category,
       managedCorps: employee.managedCorps || [],
+      hourlyRate: employee.hourlyRate || 0,
     });
     setOpenDialog(true);
   };
@@ -282,7 +285,8 @@ export default function EmployeeManagement() {
           corp: '',
           eid: '',
           category: '',
-          managedCorps: []
+          managedCorps: [],
+          hourlyRate: 0,
         });
         fetchEmployees();
       }
@@ -338,7 +342,8 @@ export default function EmployeeManagement() {
               corp: '',
               eid: '',
               category: '',
-              managedCorps: []
+              managedCorps: [],
+              hourlyRate: 0,
             });
             setOpenDialog(true);
           }}
@@ -405,6 +410,7 @@ export default function EmployeeManagement() {
               <TableCell>Corporation</TableCell>
               <TableCell>EID</TableCell>
               <TableCell>Category</TableCell>
+              <TableCell>Hourly Rate</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -422,6 +428,7 @@ export default function EmployeeManagement() {
                 <TableCell>{employee.corp}</TableCell>
                 <TableCell>{employee.eid}</TableCell>
                 <TableCell>{employee.category}</TableCell>
+                <TableCell>${(employee.hourlyRate || 0).toFixed(2)}</TableCell>
                 <TableCell>
                   <IconButton onClick={() => handleEdit(employee)} size="small">
                     <EditIcon />
@@ -434,7 +441,7 @@ export default function EmployeeManagement() {
             ))}
             {filteredEmployees.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                   <Typography variant="body2" color="text.secondary">
                     {searchValue ? 'No employees found matching your search criteria.' : 'No employees found.'}
                   </Typography>
@@ -543,6 +550,19 @@ export default function EmployeeManagement() {
               value={formData.category}
               onChange={(e) => handleChange('category', e.target.value)}
               fullWidth
+            />
+            <TextField
+              label="Hourly Rate ($)"
+              type="number"
+              value={formData.hourlyRate || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, hourlyRate: e.target.value === '' ? 0 : Number(e.target.value) }))}
+              onBlur={(e) => {
+                if (e.target.value === '') setFormData(prev => ({ ...prev, hourlyRate: 0 }));
+              }}
+              fullWidth
+              inputProps={{ min: 0, step: 0.25 }}
+              placeholder="0"
+              helperText="시급 (예: 16.50)"
             />
             
             {/* Admin인 경우에만 Managed Corps 표시 */}

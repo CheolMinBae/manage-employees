@@ -4,7 +4,7 @@
 
 import {
   Box, Grid, Typography, IconButton, Dialog, DialogTitle,
-  DialogActions, DialogContent, Button
+  DialogActions, DialogContent, Button, CircularProgress
 } from '@mui/material';
 import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
 import { PickersDay, PickersDayProps } from '@mui/x-date-pickers/PickersDay';
@@ -14,13 +14,9 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import dayjs, { Dayjs } from 'dayjs';
+import '@/constants/dateConfig'; // dayjs 플러그인 초기화
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import {
-  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths,
-  subMonths, format, isSameDay, addDays, isAfter, parseISO
-} from 'date-fns';
-import { WEEK_OPTIONS } from '@/constants/dateConfig';
 
 import AddShiftDialog from '@/app/(DashboardLayout)/components/schedule/AddShiftDialog';
 import EditShiftDialog from '@/app/(DashboardLayout)/components/schedule/EditShiftDialog';
@@ -59,6 +55,7 @@ export default function ScheduleRegisterPage() {
 
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
   const [scheduleList, setScheduleList] = useState<TimeSlot[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimeSlot | null>(null);
@@ -92,20 +89,21 @@ export default function ScheduleRegisterPage() {
      Month / Week Logic
      ========================= */
   const handleMonthChange = (dir: 'prev' | 'next') => {
-    const newMonth = dir === 'prev' ? subMonths(currentMonth, 1) : addMonths(currentMonth, 1);
-    if (dir === 'next' && isAfter(newMonth, new Date())) return;
-    setCurrentMonth(newMonth);
+    const current = dayjs(currentMonth);
+    const newMonth = dir === 'prev' ? current.subtract(1, 'month') : current.add(1, 'month');
+    if (dir === 'next' && newMonth.isAfter(dayjs())) return;
+    setCurrentMonth(newMonth.toDate());
   };
 
   const getWeeksInMonth = (monthStart: Date): WeekRange[] => {
     const weeks: WeekRange[] = [];
-    let start = startOfWeek(startOfMonth(monthStart), WEEK_OPTIONS);
-    const monthEnd = endOfMonth(monthStart);
+    let start = dayjs(monthStart).startOf('month').startOf('week');
+    const monthEnd = dayjs(monthStart).endOf('month');
 
-    while (start <= monthEnd) {
-      const end = endOfWeek(start, WEEK_OPTIONS);
-      weeks.push({ start, end });
-      start = addDays(start, 7);
+    while (start.isBefore(monthEnd) || start.isSame(monthEnd, 'day')) {
+      const end = start.endOf('week');
+      weeks.push({ start: start.toDate(), end: end.toDate() });
+      start = start.add(7, 'day');
     }
     return weeks;
   };
@@ -139,7 +137,7 @@ export default function ScheduleRegisterPage() {
      ========================= */
   const fetchSchedules = async () => {
     if (!userId) return;
-
+    setScheduleLoading(true);
     try {
       const res = await fetch('/api/schedules');
       if (!res.ok) return;
@@ -155,6 +153,8 @@ export default function ScheduleRegisterPage() {
     } catch (error) {
       console.error('Error fetching schedules:', error);
       setScheduleList([]);
+    } finally {
+      setScheduleLoading(false);
     }
   };
 
@@ -175,27 +175,27 @@ export default function ScheduleRegisterPage() {
   const confirmCopyWeek = async () => {
     if (!copyTargetWeek || !userId) return;
 
-    const today = new Date();
-    const targetWeekStart = startOfWeek(today, WEEK_OPTIONS);
+    const today = dayjs();
+    const targetWeekStart = today.startOf('week');
 
     const sourceWeek = scheduleList.filter((s) => {
-      const date = parseISO(s.date);
-      return isSameDay(startOfWeek(date, WEEK_OPTIONS), copyTargetWeek.start);
+      const d = dayjs(s.date);
+      return d.startOf('week').isSame(dayjs(copyTargetWeek.start), 'day');
     });
 
     const existing = scheduleList.filter((s) =>
-      isSameDay(startOfWeek(parseISO(s.date), WEEK_OPTIONS), targetWeekStart)
+      dayjs(s.date).startOf('week').isSame(targetWeekStart, 'day')
     );
 
     const newItems = sourceWeek
       .map((s) => {
-        const date = parseISO(s.date);
-        const diff = date.getDay();
-        const newDate = addDays(targetWeekStart, diff);
+        const d = dayjs(s.date);
+        const diff = d.day(); // 0=Sun, 1=Mon, ...
+        const newDate = targetWeekStart.add(diff, 'day');
         return {
           userId,
           userType: s.userType || 'Barista',
-          date: format(newDate, 'yyyy-MM-dd'),
+          date: newDate.format('YYYY-MM-DD'),
           start: s.start,
           end: s.end,
         };
@@ -247,6 +247,15 @@ export default function ScheduleRegisterPage() {
   /* =========================
      Render
      ========================= */
+  if (scheduleLoading && scheduleList.length === 0) {
+    return (
+      <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="60vh" gap={2}>
+        <CircularProgress size={48} />
+        <Typography variant="body2" color="text.secondary">Loading schedules...</Typography>
+      </Box>
+    );
+  }
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box p={4}>
@@ -259,7 +268,7 @@ export default function ScheduleRegisterPage() {
                   <ArrowBackIosNewIcon fontSize="small" />
                 </IconButton>
                 <Typography variant="body1" fontWeight="bold">
-                  {format(currentMonth, 'MMMM')}
+                  {dayjs(currentMonth).format('MMMM')}
                 </Typography>
                 <IconButton onClick={() => handleMonthChange('next')}>
                   <ArrowForwardIosIcon fontSize="small" />

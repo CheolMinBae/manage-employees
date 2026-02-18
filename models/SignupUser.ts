@@ -14,6 +14,7 @@ export interface ISignupUser {
   isFirstLogin?: boolean;
   managedCorps?: string[]; // 관리 가능한 매장 목록 (admin용)
   permissions?: string[]; // 개별 사용자 권한 (역할 권한 외 추가 권한)
+  hourlyRate?: number; // 시급
 }
 
 const signupUserSchema = new mongoose.Schema({
@@ -29,6 +30,7 @@ const signupUserSchema = new mongoose.Schema({
   isFirstLogin: { type: Boolean, default: true },
   managedCorps: { type: [String], default: [] }, // 관리 가능한 매장 목록
   permissions: { type: [String], default: [] }, // 개별 권한
+  hourlyRate: { type: Number, default: 0 }, // 시급
 }, { timestamps: true });
 
 const SignupUser =

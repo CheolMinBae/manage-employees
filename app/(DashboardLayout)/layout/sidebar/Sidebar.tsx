@@ -30,7 +30,6 @@ const MSidebar = ({
   const lgUp = useMediaQuery((theme: any) => theme.breakpoints.up('lg'));
   const sidebarWidth = 270;
   const { data: session } = useSession();
-  console.log(session);
 
   const scrollbarStyles = {
     '&::-webkit-scrollbar': {

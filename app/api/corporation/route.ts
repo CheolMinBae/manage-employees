@@ -1,7 +1,7 @@
-// 2025.12.18-code updated. 
 import { NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
 import Corporation from '@models/Corporation';
+import { apiError, apiServerError } from '@libs/api-response';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,12 +13,8 @@ export async function GET() {
     await dbConnect();
     const corporations = await Corporation.find({});
     return NextResponse.json(corporations, { status: 200 });
-  } catch (error: any) {
-    console.error('Failed to fetch corporations:', error);
-    return NextResponse.json(
-      { message: 'Server error: ' + error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiServerError('Failed to fetch corporations', error);
   }
 }
 
@@ -36,10 +32,7 @@ export async function POST(req: Request) {
     } = await req.json();
 
     if (!name) {
-      return NextResponse.json(
-        { message: 'Name is required.' },
-        { status: 400 }
-      );
+      return apiError('Name is required.');
     }
 
     await dbConnect();
@@ -47,17 +40,12 @@ export async function POST(req: Request) {
     // 이름 중복 검사
     const existingCorp = await Corporation.findOne({ name });
     if (existingCorp) {
-      return NextResponse.json(
-        { message: 'Corporation name already exists.' },
-        { status: 409 }
-      );
+      return apiError('Corporation name already exists.', 409);
     }
 
     const newCorporation = new Corporation({
       name,
       description,
-
-      // ✅ 회사별 영업시간 (없으면 schema default 적용)
       businessDayStartHour,
       businessDayEndHour,
     });
@@ -65,18 +53,13 @@ export async function POST(req: Request) {
     await newCorporation.save();
 
     return NextResponse.json(newCorporation, { status: 201 });
-  } catch (error: any) {
-    console.error('Failed to create corporation:', error);
-    return NextResponse.json(
-      { message: 'Server error: ' + error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiServerError('Failed to create corporation', error);
   }
 }
 
 /**
  * PUT: 법인 정보 업데이트
- * - 영업시간 수정 가능
  */
 export async function PUT(req: Request) {
   try {
@@ -89,10 +72,7 @@ export async function PUT(req: Request) {
     } = await req.json();
 
     if (!_id || !name) {
-      return NextResponse.json(
-        { message: 'ID and name are required.' },
-        { status: 400 }
-      );
+      return apiError('ID and name are required.');
     }
 
     await dbConnect();
@@ -103,10 +83,7 @@ export async function PUT(req: Request) {
       _id: { $ne: _id },
     });
     if (existingCorp) {
-      return NextResponse.json(
-        { message: 'Corporation name already exists.' },
-        { status: 409 }
-      );
+      return apiError('Corporation name already exists.', 409);
     }
 
     const updatedCorporation = await Corporation.findByIdAndUpdate(
@@ -114,8 +91,6 @@ export async function PUT(req: Request) {
       {
         name,
         description,
-
-        // ✅ 영업시간 업데이트
         businessDayStartHour,
         businessDayEndHour,
       },
@@ -123,19 +98,12 @@ export async function PUT(req: Request) {
     );
 
     if (!updatedCorporation) {
-      return NextResponse.json(
-        { message: 'Corporation not found.' },
-        { status: 404 }
-      );
+      return apiError('Corporation not found.', 404);
     }
 
     return NextResponse.json(updatedCorporation, { status: 200 });
-  } catch (error: any) {
-    console.error('Failed to update corporation:', error);
-    return NextResponse.json(
-      { message: 'Server error: ' + error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiServerError('Failed to update corporation', error);
   }
 }
 
@@ -147,10 +115,7 @@ export async function DELETE(req: Request) {
     const { _id } = await req.json();
 
     if (!_id) {
-      return NextResponse.json(
-        { message: 'ID is required.' },
-        { status: 400 }
-      );
+      return apiError('ID is required.');
     }
 
     await dbConnect();
@@ -158,21 +123,14 @@ export async function DELETE(req: Request) {
     const deletedCorporation = await Corporation.findByIdAndDelete(_id);
 
     if (!deletedCorporation) {
-      return NextResponse.json(
-        { message: 'Corporation not found.' },
-        { status: 404 }
-      );
+      return apiError('Corporation not found.', 404);
     }
 
     return NextResponse.json(
       { message: 'Corporation deleted successfully' },
       { status: 200 }
     );
-  } catch (error: any) {
-    console.error('Failed to delete corporation:', error);
-    return NextResponse.json(
-      { message: 'Server error: ' + error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiServerError('Failed to delete corporation', error);
   }
 }

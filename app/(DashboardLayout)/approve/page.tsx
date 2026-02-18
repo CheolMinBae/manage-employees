@@ -1,20 +1,16 @@
 'use client';
 
 import {
-  Box, Button, Typography, Stack, Chip, Grid, Paper
+  Box, Button, Typography, Stack, Chip, Grid, Paper, CircularProgress
 } from '@mui/material';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import dayjs, { Dayjs } from 'dayjs';
-import isBetween from 'dayjs/plugin/isBetween';
+import '@/constants/dateConfig'; // dayjs 플러그인 초기화 (isBetween 포함)
 import { useEffect, useMemo, useState } from 'react';
-import { startOfWeek, endOfWeek } from 'date-fns';
-import { WEEK_OPTIONS } from '@/constants/dateConfig';
 import FilterControls from '../components/approve/FilterControls';
 import ApprovalDialog from '../components/approve/ApprovalDialog';
 import EditShiftDialog from '../components/schedule/EditShiftDialog';
-
-dayjs.extend(isBetween);
 
 interface TimeSlot {
   _id: string;
@@ -25,6 +21,8 @@ interface TimeSlot {
   end: string;
   approved: boolean;
   userType: string;
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 interface WorkSession {
@@ -46,16 +44,23 @@ export default function ScheduleApprovalPage() {
   const [activeUser, setActiveUser] = useState<string>('');
   const [dateRange, setDateRange] = useState([
     {
-      startDate: startOfWeek(new Date(), WEEK_OPTIONS),
-      endDate: endOfWeek(new Date(), WEEK_OPTIONS),
+      startDate: dayjs().startOf('week').toDate(),
+      endDate: dayjs().endOf('week').toDate(),
       key: 'selection'
     }
   ]);
 
+  const [pageLoading, setPageLoading] = useState(true);
+
   const fetchAllSchedules = async () => {
-    const res = await fetch('/api/schedules');
-    const data: TimeSlot[] = await res.json();
-    setSchedules(data);
+    setPageLoading(true);
+    try {
+      const res = await fetch('/api/schedules');
+      const data: TimeSlot[] = await res.json();
+      setSchedules(data);
+    } finally {
+      setPageLoading(false);
+    }
   };
 
   const handleApproveConfirm = (slot: TimeSlot) => {
@@ -224,20 +229,28 @@ export default function ScheduleApprovalPage() {
       return matchStatus && matchDate;
     });
 
-    // 정렬: 날짜 빠른 순, 같은 날짜면 시간 빠른 순
+    // 정렬: Approved 먼저 → Pending, 같은 상태면 날짜 빠른 순, 같은 날짜면 시간 빠른 순
     return filteredSchedules.sort((a, b) => {
-      // 먼저 날짜로 정렬
+      // 1순위: 승인 상태 (Approved 먼저)
+      if (a.approved !== b.approved) return a.approved ? -1 : 1;
+
+      // 2순위: 날짜
       const dateComparison = dayjs(a.date).diff(dayjs(b.date));
-      if (dateComparison !== 0) {
-        return dateComparison;
-      }
+      if (dateComparison !== 0) return dateComparison;
       
-      // 날짜가 같으면 시작 시간으로 정렬
-      const timeA = dayjs(`${a.date} ${a.start}`);
-      const timeB = dayjs(`${b.date} ${b.start}`);
-      return timeA.diff(timeB);
+      // 3순위: 시작 시간
+      return dayjs(`${a.date} ${a.start}`).diff(dayjs(`${b.date} ${b.start}`));
     });
   }, [schedules, activeUser, selectedStatuses, dateRange]);
+
+  if (pageLoading) {
+    return (
+      <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="60vh" gap={2}>
+        <CircularProgress size={48} />
+        <Typography variant="body2" color="text.secondary">Loading schedules...</Typography>
+      </Box>
+    );
+  }
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -318,6 +331,11 @@ export default function ScheduleApprovalPage() {
                               color={slot.approved ? 'success' : 'warning'}
                               sx={{ mt: 1 }}
                             />
+                            {slot.approved && slot.approvedBy && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                by {slot.approvedBy} · {slot.approvedAt ? dayjs(slot.approvedAt).format('MMM D, h:mm A') : ''}
+                              </Typography>
+                            )}
                           </Box>
                           <Stack direction="row" spacing={1}>
                             <Button

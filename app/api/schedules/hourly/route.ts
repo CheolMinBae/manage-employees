@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
 import Schedule from '@models/Schedule';
 import SignupUser from '@models/SignupUser';
-import { format } from 'date-fns';
+import dayjs from 'dayjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   await dbConnect();
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get('date') || format(new Date(), 'yyyy-MM-dd');
+  const date = searchParams.get('date') || dayjs().format('YYYY-MM-DD');
 
   try {
     // 해당 날짜의 승인된 스케줄만 가져오기
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const allUsers = await SignupUser.find({
       status: { $ne: 'deleted' }
     })
-      .select('_id name position corp eid category userType')
+      .select('_id name position corp eid category userType hourlyRate')
       .lean();
 
     interface User {
@@ -161,6 +161,7 @@ export async function GET(req: NextRequest) {
         eid: user.eid,
         category: user.category,
         userType: Array.isArray(user.userType) ? user.userType.join(', ') : (user.userType || 'Employee'),
+        hourlyRate: (user as any).hourlyRate || 0,
         hourlyStatus,
         hasSchedule: userSchedules.length > 0
       };

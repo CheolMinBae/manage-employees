@@ -5,7 +5,7 @@ import {
   Typography, Paper, Box, Tooltip, Chip, Stack, IconButton, Snackbar, Alert,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem,
   Select, FormControl, InputLabel, OutlinedInput, Popper, ClickAwayListener,
-  Switch, FormControlLabel, Divider, Autocomplete
+  Switch, FormControlLabel, Divider, Autocomplete, CircularProgress, Backdrop
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -16,11 +16,11 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
-import { useEffect, useState, useRef } from 'react';
-import { format, addDays, subDays } from 'date-fns';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
 import EditShiftDialog from '../schedule/EditShiftDialog';
+import { useHourlyData } from '../../hooks/useHourlyData';
+import { useDragSelection } from '../../hooks/useDragSelection';
 
 interface Employee {
   name: string;
@@ -44,6 +44,7 @@ interface EmployeeSchedule {
   eid: number | string;
   category: string;
   userType: string;
+  hourlyRate: number;
   hourlyStatus: Array<{
     isWorking: boolean;
     workingRatio: number;
@@ -82,7 +83,16 @@ interface TimeSelectionDialogProps {
   selectedHour: number;
   userId: string;
   selectedDate: Date;
-  dragEndHour?: number; // 드래그로 선택한 끝 시간
+  dragEndHour?: number;
+  templates: ScheduleTemplate[];
+}
+
+// 시간 옵션을 컴포넌트 외부에서 한 번만 생성 (15분 간격, 96개)
+const TIME_OPTIONS: string[] = [];
+for (let hour = 0; hour < 24; hour++) {
+  for (let minute = 0; minute < 60; minute += 15) {
+    TIME_OPTIONS.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+  }
 }
 
 function TimeSelectionDialog({
@@ -94,23 +104,20 @@ function TimeSelectionDialog({
   selectedHour,
   userId,
   selectedDate,
-  dragEndHour
+  dragEndHour,
+  templates
 }: TimeSelectionDialogProps) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.position === 'admin';
-  const isEmployee = session?.user?.position === 'employee';
 
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
 
-  // 템플릿 관련 상태
   const [useTemplate, setUseTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
 
   useEffect(() => {
     if (open) {
-      // 드래그로 선택한 경우 범위 사용, 아니면 단일 시간
       const startHour = dragEndHour !== undefined 
         ? Math.min(selectedHour, dragEndHour) 
         : selectedHour;
@@ -124,56 +131,22 @@ function TimeSelectionDialog({
       setStartTime(`${startHourStr}:00`);
       setEndTime(`${endHourStr}:00`);
 
-      // 템플릿 상태 초기화
       setUseTemplate(false);
       setSelectedTemplate('');
     }
   }, [open, selectedHour, dragEndHour]);
 
-  // Fetch templates (admin only)
-  useEffect(() => {
-    const fetchTemplates = async () => {
-      if (!(isAdmin || isEmployee)) return;
-
-      try {
-        const response = await fetch('/api/schedule-templates');
-        if (response.ok) {
-          const data = await response.json();
-          const activeTemplates = data.filter((template: ScheduleTemplate) => template.isActive);
-          setTemplates(activeTemplates.sort((a: ScheduleTemplate, b: ScheduleTemplate) => a.order - b.order));
-        }
-      } catch (error) {
-        console.error('Error fetching templates:', error);
-      }
-    };
-
-    if (open && (isAdmin || isEmployee)) {
-      fetchTemplates();
-    }
-  }, [open, isAdmin, isEmployee]);
-
-  const generateTimeOptions = () => {
-    const options = [];
-    for (let hour = 0; hour < 24; hour++) {
-      for (let minute = 0; minute < 60; minute += 15) {
-        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        options.push(timeStr);
-      }
-    }
-    return options;
-  };
-
-  const timeOptions = generateTimeOptions();
+  const timeOptions = TIME_OPTIONS;
 
   const handleTemplateSubmit = async () => {
-    if (!selectedTemplate || !onTemplateConfirm) return;
+    if (!selectedTemplate) return;
 
     const template = templates.find(t => t._id === selectedTemplate);
     if (!template) return;
 
     try {
       // 해당 날짜의 기존 스케줄 삭제
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const dateStr = dayjs(selectedDate).format('YYYY-MM-DD');
       const existingSchedulesResponse = await fetch(`/api/schedules?userId=${userId}&date=${dateStr}`);
       if (existingSchedulesResponse.ok) {
         const existingSchedules = await existingSchedulesResponse.json();
@@ -278,32 +251,26 @@ function TimeSelectionDialog({
         {!useTemplate && (
           <Box>
             <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-              <TextField
-                select
-                label="Start Time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+              <Autocomplete
+                options={timeOptions}
+                value={startTime || null}
+                onChange={(_, newValue) => setStartTime(newValue || '')}
+                renderInput={(params) => (
+                  <TextField {...params} label="Start Time" />
+                )}
                 fullWidth
-              >
-                {timeOptions.map((time) => (
-                  <MenuItem key={time} value={time}>
-                    {time}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                label="End Time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
+                disableClearable={!!startTime}
+              />
+              <Autocomplete
+                options={timeOptions}
+                value={endTime || null}
+                onChange={(_, newValue) => setEndTime(newValue || '')}
+                renderInput={(params) => (
+                  <TextField {...params} label="End Time" />
+                )}
                 fullWidth
-              >
-                {timeOptions.map((time) => (
-                  <MenuItem key={time} value={time}>
-                    {time}
-                  </MenuItem>
-                ))}
-              </TextField>
+                disableClearable={!!endTime}
+              />
             </Box>
             {startTime && endTime && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
@@ -327,206 +294,289 @@ function TimeSelectionDialog({
   );
 }
 
-export default function HourlyStaffingTable({ initialDate = new Date() }: HourlyStaffingTableProps) {
-  const searchParams = useSearchParams(); // ✅ URL 쿼리 읽기
-  const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
-  const [data, setData] = useState<HourlyStaffingData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<{ userId: string; name: string; hour: number; dragEndHour?: number } | null>(null);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const datePickerRef = useRef<HTMLDivElement>(null);
+// 개별 직원 행 — React.memo로 불필요한 리렌더링 방지
+const EmployeeRow = React.memo(function EmployeeRow({
+  employee, hourlyData, isAdmin, userName, selectedDate,
+  isDragSelected, isDragging, handleDragStart, handleDragEnter, handleDragEndAction,
+  handleOpenDialog, setEditDialogInfo, setEditScheduleData, setEditDialogOpen,
+  setEditLoading, getEmployeeTotalHours, onEditHourlyRate,
+}: {
+  employee: EmployeeSchedule;
+  hourlyData: HourlyData[];
+  isAdmin: boolean;
+  userName: string | null | undefined;
+  selectedDate: Date;
+  isDragSelected: (userId: string, hour: number) => boolean;
+  isDragging: boolean;
+  handleDragStart: (userId: string, hour: number, name: string) => void;
+  handleDragEnter: (hour: number) => void;
+  handleDragEndAction: () => void;
+  handleOpenDialog: (userId: string, hour: number, name: string) => void;
+  setEditDialogInfo: (info: { employee: EmployeeSchedule; hour: number }) => void;
+  setEditScheduleData: (data: any) => void;
+  setEditDialogOpen: (open: boolean) => void;
+  setEditLoading: (loading: boolean) => void;
+  getEmployeeTotalHours: (emp: EmployeeSchedule) => { pending: number; approved: number };
+  onEditHourlyRate?: (employee: EmployeeSchedule) => void;
+}) {
+  return (
+    <TableRow>
+      <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 1 }}>
+        <Box>
+          <Typography variant="body2" fontWeight="bold">
+            {employee.name} ({Array.isArray(employee.userType)
+              ? employee.userType.join(', ')
+              : String(employee.userType || '')})
+          </Typography>
+          <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
+            <Chip label={employee.corp} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
+            <Chip label={`EID: ${employee.eid}`} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
+            <Chip label={employee.category} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
+            <Chip
+              label={`$${(employee.hourlyRate || 0).toFixed(2)}/hr`}
+              size="small"
+              color="primary"
+              variant="outlined"
+              sx={{ fontSize: '0.6rem', height: 16, cursor: isAdmin ? 'pointer' : 'default' }}
+              onClick={isAdmin ? () => onEditHourlyRate?.(employee) : undefined}
+            />
+          </Stack>
+        </Box>
+      </TableCell>
 
+      {hourlyData.map((hourData) => {
+        const hour = hourData.hour;
+        if (hour < 3 || hour > 23) return null;
+        const status = employee.hourlyStatus?.[hour];
+        return (
+          <TableCell key={hour} align="center" sx={{ px: 0.5, py: 1 }}>
+            {status?.isWorking ? (
+              <Tooltip title={`Working: ${status.shift}`} placement="top">
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: status.approved === true ? '#4caf50' : '#ff9800',
+                    fontWeight: 'bold',
+                    cursor: (isAdmin || employee.name === userName) ? 'pointer' : 'default',
+                    fontSize: '0.75rem',
+                    px: 0.5,
+                    py: 0.25,
+                    borderRadius: 1,
+                    '&:hover': (isAdmin || employee.name === userName) ? {
+                      backgroundColor: status.approved === true
+                        ? 'rgba(76, 175, 80, 0.1)'
+                        : 'rgba(255, 152, 0, 0.1)'
+                    } : {},
+                  }}
+                  onClick={async () => {
+                    if (!isAdmin && employee.name !== userName) return;
+                    setEditDialogInfo({ employee, hour });
+                    setEditLoading(true);
+                    try {
+                      const dateStr = dayjs(selectedDate).format('YYYY-MM-DD');
+                      const response = await fetch(`/api/schedules?userId=${employee.userId}&date=${dateStr}`);
+                      if (response.ok) {
+                        const schedules = await response.json();
+                        const relevantSchedule = schedules.find((schedule: any) => {
+                          const startHour = parseInt(schedule.start.split(':')[0]);
+                          const startMinute = parseInt(schedule.start.split(':')[1]);
+                          const endHour = parseInt(schedule.end.split(':')[0]);
+                          const endMinute = parseInt(schedule.end.split(':')[1]);
+                          const startTotalMinutes = startHour * 60 + startMinute;
+                          const endTotalMinutes = endHour * 60 + endMinute;
+                          const currentHourStart = hour * 60;
+                          const currentHourEnd = (hour + 1) * 60;
+                          return startTotalMinutes < currentHourEnd && endTotalMinutes > currentHourStart;
+                        });
+                        if (relevantSchedule) {
+                          setEditScheduleData(relevantSchedule);
+                          setEditDialogOpen(true);
+                        } else {
+                          console.warn('No matching schedule found for this hour');
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error fetching schedule data:', error);
+                    } finally {
+                      setEditLoading(false);
+                    }
+                  }}
+                >
+                  {status.workingRatio === 1 ? '1.00' : status.workingRatio.toFixed(2)}
+                </Typography>
+              </Tooltip>
+            ) : (
+              (isAdmin || employee.name === userName) ? (
+                <Tooltip title="Drag to select time range or click to add shift" placement="top">
+                  <Box
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      minHeight: 24,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      backgroundColor: isDragSelected(employee.userId, hour) ? 'rgba(33, 150, 243, 0.3)' : 'transparent',
+                      borderRadius: 1,
+                      transition: 'background-color 0.1s',
+                      userSelect: 'none',
+                      '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)' }
+                    }}
+                    onMouseDown={() => handleDragStart(employee.userId, hour, employee.name)}
+                    onMouseEnter={() => handleDragEnter(hour)}
+                    onMouseUp={handleDragEndAction}
+                    onClick={() => {
+                      if (!isDragging) {
+                        handleOpenDialog(employee.userId, hour, employee.name);
+                      }
+                    }}
+                  >
+                    <AddIcon sx={{ fontSize: '0.8rem', color: '#2196f3' }} />
+                  </Box>
+                </Tooltip>
+              ) : (
+                <Typography variant="caption" sx={{ fontSize: '0.75rem', color: '#ccc' }}>
+                  -
+                </Typography>
+              )
+            )}
+          </TableCell>
+        );
+      })}
+
+      <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
+        <Box display="flex" flexDirection="column" gap={0.5}>
+          <Typography variant="body2" fontWeight="bold" sx={{ color: '#ff9800', fontSize: '0.75rem', lineHeight: 1 }}>
+            {getEmployeeTotalHours(employee).pending.toFixed(2)}
+          </Typography>
+          <Divider sx={{ my: 0.1 }} />
+          <Typography variant="body2" fontWeight="bold" sx={{ color: '#4caf50', fontSize: '0.75rem', lineHeight: 1 }}>
+            {getEmployeeTotalHours(employee).approved.toFixed(2)}
+          </Typography>
+        </Box>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+export default function HourlyStaffingTable({ initialDate = new Date() }: HourlyStaffingTableProps) {
   // 세션 정보
   const { data: session } = useSession();
   const userPosition = session?.user?.position;
   const userName = session?.user?.name;
   const isAdmin = userPosition === 'admin';
 
-  // ✅ URL의 ?date=YYYY-MM-DD 가 바뀌면 selectedDate 동기화
+  // 데이터 패칭/필터링/정렬 hook
+  const hourly = useHourlyData({ initialDate, isAdmin, userName: userName ?? undefined });
+  const {
+    data, selectedDate, setSelectedDate, loading, refreshing,
+    nameFilter, setNameFilter, userTypeFilter, setUserTypeFilter,
+    companyFilter, setCompanyFilter, categoryFilter, setCategoryFilter,
+    uniqueUserTypes, uniqueCompanies, uniqueCategories,
+    sortConfig, handleHourSort,
+    sortedEmployees, filteredHourlyData,
+    fetchHourlyData, handleDateChange, handleClearFilters, getEmployeeTotalHours,
+  } = hourly;
+
+  // 필터된 직원 수 (표시용)
+  const filteredEmployees = hourly.sortedEmployees;
+
+  // UI 상태
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success');
+  // Dialog 상태 — 테이블 리렌더링 방지를 위해 별도 state 그룹
+  const [dialogState, setDialogState] = useState<{
+    open: boolean;
+    employee: { userId: string; name: string; hour: number; dragEndHour?: number } | null;
+  }>({ open: false, employee: null });
+
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  // 템플릿을 한 번만 fetch
+  const [templates, setTemplates] = useState<ScheduleTemplate[]>([]);
   useEffect(() => {
-    const d = searchParams.get('date');
-    if (d) {
-      const [y, m, da] = d.split('-').map(Number);
-      if (!isNaN(y) && !isNaN(m) && !isNaN(da)) {
-        const next = new Date(y, m - 1, da);
-        if (!isNaN(next.getTime())) {
-          setSelectedDate(next);
+    const fetchTemplates = async () => {
+      try {
+        const response = await fetch('/api/schedule-templates');
+        if (response.ok) {
+          const data = await response.json();
+          const activeTemplates = data.filter((t: ScheduleTemplate) => t.isActive);
+          setTemplates(activeTemplates.sort((a: ScheduleTemplate, b: ScheduleTemplate) => a.order - b.order));
         }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
       }
+    };
+    if (isAdmin) fetchTemplates();
+  }, [isAdmin]);
+
+  // 시급 수정 Dialog 상태
+  const [rateDialogOpen, setRateDialogOpen] = useState(false);
+  const [rateEditTarget, setRateEditTarget] = useState<EmployeeSchedule | null>(null);
+  const [rateEditValue, setRateEditValue] = useState<string>('0');
+
+  const handleEditHourlyRate = useCallback((employee: EmployeeSchedule) => {
+    setRateEditTarget(employee);
+    setRateEditValue(String(employee.hourlyRate || 0));
+    setRateDialogOpen(true);
+  }, []);
+
+  const handleSaveHourlyRate = useCallback(async () => {
+    if (!rateEditTarget) return;
+    try {
+      const res = await fetch(`/api/users?id=${rateEditTarget.userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hourlyRate: Number(rateEditValue) }),
+      });
+      if (res.ok) {
+        setRateDialogOpen(false);
+        fetchHourlyData(true);
+        setToastMessage(`${rateEditTarget.name}의 시급이 $${Number(rateEditValue).toFixed(2)}로 변경되었습니다`);
+        setToastSeverity('success');
+        setToastOpen(true);
+      }
+    } catch (error) {
+      console.error('Error updating hourly rate:', error);
+      setToastMessage('시급 변경에 실패했습니다');
+      setToastSeverity('error');
+      setToastOpen(true);
     }
-  }, [searchParams]);
+  }, [rateEditTarget, rateEditValue, fetchHourlyData]);
 
-  // 필터링 상태
-  const [nameFilter, setNameFilter] = useState('');
-  const [userTypeFilter, setUserTypeFilter] = useState<string[]>([]);
-  const [companyFilter, setCompanyFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
-
-  // 정렬 상태
-  const [sortConfig, setSortConfig] = useState<{
-    hour: number | null;
-    direction: 'asc' | 'desc' | null;
-  }>({
-    hour: null,
-    direction: null
-  });
-
-  // Add/Edit Shift Dialog 상태
+  // Edit Dialog 상태
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editDialogInfo, setEditDialogInfo] = useState<{ employee: EmployeeSchedule; hour: number } | null>(null);
   const [editScheduleData, setEditScheduleData] = useState<any>(null);
+  const [editLoading, setEditLoading] = useState(false);
 
-  // 드래그 스케줄 지정 상태
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<{ userId: string; hour: number; name: string } | null>(null);
-  const [dragEnd, setDragEnd] = useState<{ hour: number } | null>(null);
-  const [dragSelection, setDragSelection] = useState<{ userId: string; startHour: number; endHour: number; name: string } | null>(null);
+  // 드래그 hook
+  const drag = useDragSelection((userId, name, startHour, endHour) => {
+    setDialogState({ open: true, employee: { userId, name, hour: startHour, dragEndHour: endHour } });
+  });
+  const { isDragging, handleDragStart, handleDragEnter, handleDragEndAction, isDragSelected } = drag;
 
-  const fetchHourlyData = async (isRefresh = false) => {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
+  const handleAddSchedule = useCallback(async (startTime: string, endTime: string) => {
+    const emp = dialogState.employee;
+    if (!emp) return;
     try {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const response = await fetch(`/api/schedules/hourly?date=${dateStr}&includeAdmin=true`, {
-        cache: 'no-store',
-      });
-      const result = await response.json();
-      setData(result);
-    } catch (error) {
-      console.error('Error fetching hourly data:', error);
-    } finally {
-      if (isRefresh) setRefreshing(false);
-      else setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchHourlyData();
-  }, [selectedDate]);
-
-  // 필터링된 직원 데이터
-  const filteredEmployees = (data?.employeeSchedules || []).filter(employee => {
-    if (!isAdmin && employee.name !== userName) {
-      return false;
-    }
-
-    const nameMatch = employee.name.toLowerCase().includes(nameFilter.toLowerCase());
-    const userTypeMatch = userTypeFilter.length === 0 || userTypeFilter.includes(employee.userType);
-    const companyMatch = !companyFilter || employee.corp === companyFilter;
-    const categoryMatch = categoryFilter.length === 0 || categoryFilter.includes(employee.category);
-
-    return nameMatch && userTypeMatch && companyMatch && categoryMatch;
-  });
-
-  // 정렬된 직원 데이터
-  // 그룹 우선순위: 승인된 직원(0) → 승인 안 된 직원(1) → OFF 직원(2)
-  const getEmployeeGroup = (employee: EmployeeSchedule, hour: number) => {
-    const status = employee.hourlyStatus?.[hour];
-    if (!status?.isWorking || !status?.workingRatio) return 2; // OFF
-    if (status.approved === true) return 0; // 승인됨
-    return 1; // 승인 안 됨
-  };
-
-  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
-    if (!sortConfig.hour || !sortConfig.direction) return 0;
-
-    const aGroup = getEmployeeGroup(a, sortConfig.hour);
-    const bGroup = getEmployeeGroup(b, sortConfig.hour);
-
-    // 1순위: 그룹 순서로 정렬 (승인 → 미승인 → OFF)
-    if (aGroup !== bGroup) {
-      return aGroup - bGroup;
-    }
-
-    // 2순위: 같은 그룹 내에서 workingRatio로 정렬 (높은 값이 위로)
-    const aWorkingRatio = a.hourlyStatus?.[sortConfig.hour]?.workingRatio || 0;
-    const bWorkingRatio = b.hourlyStatus?.[sortConfig.hour]?.workingRatio || 0;
-
-    return sortConfig.direction === 'desc' ? (bWorkingRatio - aWorkingRatio) : (aWorkingRatio - bWorkingRatio);
-  });
-
-  // 필터링된 직원들을 기준으로 시간대별 근무자 수 재계산
-  const filteredHourlyData = (data?.hourlyData || []).map(hourData => {
-    let pendingCount = 0;
-    let approvedCount = 0;
-    const workingEmployees: EmployeeSchedule[] = [];
-
-    sortedEmployees.forEach(emp => {
-      const status = emp.hourlyStatus?.[hourData.hour];
-      if (status?.isWorking && status?.workingRatio) {
-        workingEmployees.push(emp);
-        if (status.approved === true) {
-          approvedCount += status.workingRatio;
-        } else {
-          pendingCount += status.workingRatio;
-        }
-      }
-    });
-
-    return {
-      ...hourData,
-      pendingCount,
-      approvedCount,
-      employees: workingEmployees
-    };
-  });
-
-  // 고유 목록
-  const uniqueUserTypes = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.userType)));
-  const uniqueCompanies = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.corp)));
-  const uniqueCategories = Array.from(new Set((data?.employeeSchedules || []).map(emp => emp.category)));
-
-  const handleClearFilters = () => {
-    setNameFilter('');
-    setUserTypeFilter([]);
-    setCompanyFilter('');
-    setCategoryFilter([]);
-    setSortConfig({ hour: null, direction: null });
-  };
-
-  const handleHourSort = (hour: number) => {
-    setSortConfig(prevConfig => {
-      if (prevConfig.hour !== hour) {
-        return { hour, direction: 'desc' };
-      } else {
-        if (prevConfig.direction === 'desc') return { hour, direction: 'asc' };
-        if (prevConfig.direction === 'asc') return { hour: null, direction: null };
-        return { hour, direction: 'desc' };
-      }
-    });
-  };
-
-  const handleAddSchedule = async (startTime: string, endTime: string) => {
-    if (!selectedEmployee) return;
-
-    try {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-
+      const dateStr = dayjs(selectedDate).format('YYYY-MM-DD');
       const response = await fetch('/api/schedules', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: selectedEmployee.userId,
+          userId: emp.userId,
           date: dateStr,
           start: startTime,
           end: endTime,
-          approved: true, // Admin이 추가하므로 자동 승인
+          approved: true,
         }),
       });
 
       if (response.ok) {
-        setToastMessage(`${selectedEmployee.name}의 ${startTime}-${endTime} 근무가 등록되었습니다`);
+        setToastMessage(`${emp.name}의 ${startTime}-${endTime} 근무가 등록되었습니다`);
         setToastSeverity('success');
         setToastOpen(true);
         fetchHourlyData(true);
@@ -539,73 +589,17 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       setToastSeverity('error');
       setToastOpen(true);
     }
-  };
+  }, [dialogState.employee, selectedDate, fetchHourlyData]);
 
-  const handleOpenDialog = (userId: string, hour: number, employeeName: string) => {
-    setSelectedEmployee({ userId, name: employeeName, hour });
-    setDialogOpen(true);
-  };
+  const handleOpenDialog = useCallback((userId: string, hour: number, employeeName: string) => {
+    setDialogState({ open: true, employee: { userId, name: employeeName, hour } });
+  }, []);
 
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    setSelectedEmployee(null);
-  };
+  const handleCloseDialog = useCallback(() => {
+    setDialogState({ open: false, employee: null });
+  }, []);
 
   const handleCloseToast = () => setToastOpen(false);
-
-  // 드래그 이벤트 핸들러
-  const handleDragStart = (userId: string, hour: number, name: string) => {
-    setIsDragging(true);
-    setDragStart({ userId, hour, name });
-    setDragEnd({ hour });
-  };
-
-  const handleDragEnter = (hour: number) => {
-    if (isDragging && dragStart) {
-      setDragEnd({ hour });
-    }
-  };
-
-  const handleDragEndAction = async () => {
-    if (!isDragging || !dragStart || !dragEnd) {
-      setIsDragging(false);
-      setDragStart(null);
-      setDragEnd(null);
-      return;
-    }
-
-    const startHour = Math.min(dragStart.hour, dragEnd.hour);
-    const endHour = Math.max(dragStart.hour, dragEnd.hour);
-
-    setDragSelection({
-      userId: dragStart.userId,
-      startHour,
-      endHour: endHour + 1,
-      name: dragStart.name
-    });
-
-    // 다이얼로그 열기 (드래그 범위 전달)
-    setSelectedEmployee({
-      userId: dragStart.userId,
-      name: dragStart.name,
-      hour: startHour,
-      dragEndHour: endHour
-    });
-    setDialogOpen(true);
-
-    setIsDragging(false);
-    setDragStart(null);
-    setDragEnd(null);
-  };
-
-  const isDragSelected = (userId: string, hour: number) => {
-    if (!isDragging || !dragStart || !dragEnd) return false;
-    if (dragStart.userId !== userId) return false;
-    
-    const minHour = Math.min(dragStart.hour, dragEnd.hour);
-    const maxHour = Math.max(dragStart.hour, dragEnd.hour);
-    return hour >= minHour && hour <= maxHour;
-  };
 
   const handleRefresh = () => {
     fetchHourlyData(true);
@@ -619,38 +613,10 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   };
 
   const formatDateHeader = (dateStr: string) => {
-    if (!dateStr || typeof dateStr !== 'string') {
-      return 'Invalid Date';
-    }
-
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) {
-      return 'Invalid Date';
-    }
-
-    const [year, month, day] = parts.map(Number);
-
-    if (isNaN(year) || isNaN(month) || isNaN(day)) {
-      return 'Invalid Date';
-    }
-
-    if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
-      return 'Invalid Date';
-    }
-
-    const date = new Date(year, month - 1, day);
-
-    if (isNaN(date.getTime())) {
-      return 'Invalid Date';
-    }
-
-    return format(date, 'MMM d (EEE)');
-  };
-
-  const handleDateChange = (direction: 'prev' | 'next') => {
-    setSelectedDate(prevDate =>
-      direction === 'prev' ? subDays(prevDate, 1) : addDays(prevDate, 1)
-    );
+    if (!dateStr || typeof dateStr !== 'string') return 'Invalid Date';
+    const d = dayjs(dateStr);
+    if (!d.isValid()) return 'Invalid Date';
+    return d.format('MMM D (ddd)');
   };
 
   const [datePickerOpenState, setDatePickerOpenState] = useState(false);
@@ -728,25 +694,6 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     );
   };
 
-  const getEmployeeTotalHours = (employee: EmployeeSchedule): { approved: number; pending: number; total: number } => {
-    const result = (employee.hourlyStatus || []).reduce((acc: { approved: number; pending: number }, status: any) => {
-      if (status?.isWorking && status?.workingRatio) {
-        if (status.approved === true) {
-          acc.approved += status.workingRatio;
-        } else {
-          acc.pending += status.workingRatio;
-        }
-      }
-      return acc;
-    }, { approved: 0, pending: 0 });
-
-    return {
-      approved: result.approved,
-      pending: result.pending,
-      total: result.approved + result.pending
-    };
-  };
-
   const formatHourCalifornia = (hour: number) => {
     if (hour === 0) return '12 AM';
     if (hour === 12) return '12 PM';
@@ -758,18 +705,12 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
     return (
       <Box id="hourly-section">
         <Box display="flex" alignItems="center" gap={1} sx={{ mb: 2 }}>
-          <Typography variant="h6">
-            ⏰ Hourly Staffing
-          </Typography>
-          <IconButton
-            size="small"
-            onClick={handleRefresh}
-            disabled={loading || refreshing}
-          >
-            <RefreshIcon fontSize="small" />
-          </IconButton>
+          <Typography variant="h6">⏰ Hourly Staffing</Typography>
         </Box>
-        <Typography>Loading...</Typography>
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="40vh" gap={2}>
+          <CircularProgress size={40} />
+          <Typography variant="body2" color="text.secondary">Loading staffing data...</Typography>
+        </Box>
       </Box>
     );
   }
@@ -849,13 +790,17 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               value={userTypeFilter}
               onChange={(event, newValue) => setUserTypeFilter(newValue)}
               renderTags={(value, getTagProps) =>
-                value.map((option, index) => (
-                  <Chip
-                    label={option}
-                    size="small"
-                    {...getTagProps({ index })}
-                  />
-                ))
+                value.map((option, index) => {
+                  const { key, ...tagProps } = getTagProps({ index });
+                  return (
+                    <Chip
+                      key={key}
+                      label={option}
+                      size="small"
+                      {...tagProps}
+                    />
+                  );
+                })
               }
               renderInput={(params) => (
                 <TextField
@@ -924,6 +869,17 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
         </Box>
       )}
 
+      <Box sx={{ position: 'relative' }}>
+        {/* 데이터 갱신 중 오버레이 */}
+        {refreshing && (
+          <Box sx={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'rgba(255,255,255,0.7)', zIndex: 10, borderRadius: 1,
+          }}>
+            <CircularProgress size={36} />
+          </Box>
+        )}
       <TableContainer 
         component={Paper}
         onMouseUp={handleDragEndAction}
@@ -967,7 +923,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 </Box>
 
                 {/* Date Picker Popper */}
-                <Popper open={datePickerOpen} anchorEl={datePickerRef.current} placement="bottom" sx={{ zIndex: 1300 }}>
+                <Popper open={datePickerOpenState} anchorEl={datePickerRef.current} placement="bottom" sx={{ zIndex: 1300 }}>
                   <ClickAwayListener onClickAway={handleDatePickerClose}>
                     <Paper sx={{ p: 1, mt: 1 }}>
                       <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -986,10 +942,9 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               </TableCell>
 
               {(data?.hourlyData || []).map((hourData) => (
-                <>
+                <React.Fragment key={`header-${hourData.hour}`}>
                   {(hourData.hour >= 3 && hourData.hour <= 23) && (
                     <TableCell
-                      key={hourData.hour}
                       align="center"
                       sx={{
                         minWidth: 40,
@@ -1024,7 +979,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                       )}
                     </TableCell>
                   )}
-                </>
+                </React.Fragment>
               ))}
               <TableCell align="center" sx={{ minWidth: 60, px: 0.5 }}>
                 <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
@@ -1043,9 +998,9 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 </Typography>
               </TableCell>
               {filteredHourlyData.map((hourData) => (
-                <>
+                <React.Fragment key={`total-${hourData.hour}`}>
                   {(hourData.hour >= 3 && hourData.hour <= 23) && (
-                    <TableCell key={hourData.hour} align="center" sx={{ px: 0.5, py: 1 }}>
+                    <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                       <Tooltip title={renderTooltipContent(hourData.employees)} placement="top" arrow>
                         <Box>
                           <>
@@ -1067,7 +1022,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                       </Tooltip>
                     </TableCell>
                   )}
-                </>
+                </React.Fragment>
               ))}
               <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                 <Box display="flex" flexDirection="column" gap={0.5}>
@@ -1094,149 +1049,73 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               </TableCell>
             </TableRow>
 
+            {/* Budget Row (시간대별 인건비) */}
+            <TableRow sx={{ backgroundColor: '#e8f5e9' }}>
+              <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: '#e8f5e9', zIndex: 1 }}>
+                <Typography variant="body2" fontWeight="bold">
+                  💰 Labor Budget
+                </Typography>
+              </TableCell>
+              {filteredHourlyData.map((hourData) => (
+                <React.Fragment key={`budget-${hourData.hour}`}>
+                  {(hourData.hour >= 3 && hourData.hour <= 23) && (
+                    <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: '#1b5e20', fontWeight: 'bold', fontSize: '0.7rem', lineHeight: 1 }}
+                      >
+                        ${hourData.budget.toFixed(0)}
+                      </Typography>
+                    </TableCell>
+                  )}
+                </React.Fragment>
+              ))}
+              <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
+                <Typography
+                  variant="body2"
+                  fontWeight="bold"
+                  sx={{ color: '#1b5e20', fontSize: '0.75rem', lineHeight: 1 }}
+                >
+                  ${filteredHourlyData
+                    .filter(h => h.hour >= 3 && h.hour <= 23)
+                    .reduce((sum, h) => sum + h.budget, 0)
+                    .toFixed(2)}
+                </Typography>
+              </TableCell>
+            </TableRow>
+
             {/* Individual Employee Rows */}
             {sortedEmployees.map((employee) => (
-              <TableRow key={employee.userId}>
-                <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 1 }}>
-                  <Box>
-                    <Typography variant="body2" fontWeight="bold">
-                      {employee.name} ({Array.isArray(employee.userType)
-                        ? employee.userType.join(', ')
-                        : String(employee.userType || '')})
-                    </Typography>
-                    <Stack direction="row" spacing={0.5} mt={0.5} flexWrap="wrap">
-                      <Chip label={employee.corp} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
-                      <Chip label={`EID: ${employee.eid}`} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
-                      <Chip label={employee.category} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
-                    </Stack>
-                  </Box>
-                </TableCell>
-
-                {(data?.hourlyData || []).map((hourData) => {
-                  const hour = hourData.hour;
-                  if (hour < 3 || hour > 23) return null;
-                  const status = employee.hourlyStatus?.[hour];
-                  return (
-                    <TableCell key={hour} align="center" sx={{ px: 0.5, py: 1 }}>
-                      {status?.isWorking ? (
-                        <Tooltip title={`Working: ${status.shift}`} placement="top">
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: status.approved === true ? '#4caf50' : '#ff9800',
-                              fontWeight: 'bold',
-                              cursor: (isAdmin || employee.name === userName) ? 'pointer' : 'default',
-                              fontSize: '0.75rem',
-                              px: 0.5,
-                              py: 0.25,
-                              borderRadius: 1,
-                              '&:hover': (isAdmin || employee.name === userName) ? {
-                                backgroundColor: status.approved === true
-                                  ? 'rgba(76, 175, 80, 0.1)'
-                                  : 'rgba(255, 152, 0, 0.1)'
-                              } : {},
-                            }}
-                            onClick={async () => {
-                              if (!isAdmin && employee.name !== userName) return;
-
-                              setEditDialogInfo({ employee, hour });
-
-                              try {
-                                const dateStr = format(selectedDate, 'yyyy-MM-dd');
-                                const response = await fetch(`/api/schedules?userId=${employee.userId}&date=${dateStr}`);
-                                if (response.ok) {
-                                  const schedules = await response.json();
-
-                                  const relevantSchedule = schedules.find((schedule: any) => {
-                                    const startHour = parseInt(schedule.start.split(':')[0]);
-                                    const startMinute = parseInt(schedule.start.split(':')[1]);
-                                    const endHour = parseInt(schedule.end.split(':')[0]);
-                                    const endMinute = parseInt(schedule.end.split(':')[1]);
-
-                                    const startTotalMinutes = startHour * 60 + startMinute;
-                                    const endTotalMinutes = endHour * 60 + endMinute;
-                                    const currentHourStart = hour * 60;
-                                    const currentHourEnd = (hour + 1) * 60;
-
-                                    return startTotalMinutes < currentHourEnd && endTotalMinutes > currentHourStart;
-                                  });
-
-                                  setEditScheduleData(relevantSchedule);
-                                }
-                              } catch (error) {
-                                console.error('Error fetching schedule data:', error);
-                              }
-
-                              setEditDialogOpen(true);
-                            }}
-                          >
-                            {status.workingRatio === 1 ? '1.00' : status.workingRatio.toFixed(2)}
-                          </Typography>
-                        </Tooltip>
-                      ) : (
-                        (isAdmin || employee.name === userName) ? (
-                          <Tooltip title="Drag to select time range or click to add shift" placement="top">
-                            <Box
-                              sx={{
-                                width: '100%',
-                                height: '100%',
-                                minHeight: 24,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                backgroundColor: isDragSelected(employee.userId, hour) ? 'rgba(33, 150, 243, 0.3)' : 'transparent',
-                                borderRadius: 1,
-                                transition: 'background-color 0.1s',
-                                userSelect: 'none',
-                                '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)' }
-                              }}
-                              onMouseDown={() => handleDragStart(employee.userId, hour, employee.name)}
-                              onMouseEnter={() => handleDragEnter(hour)}
-                              onMouseUp={handleDragEndAction}
-                              onClick={(e) => {
-                                if (!isDragging) {
-                                  handleOpenDialog(employee.userId, hour, employee.name);
-                                }
-                              }}
-                            >
-                              <AddIcon sx={{ fontSize: '0.8rem', color: '#2196f3' }} />
-                            </Box>
-                          </Tooltip>
-                        ) : (
-                          <Typography variant="caption" sx={{ fontSize: '0.75rem', color: '#ccc' }}>
-                            -
-                          </Typography>
-                        )
-                      )}
-                    </TableCell>
-                  );
-                })}
-
-                <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
-                  <Box display="flex" flexDirection="column" gap={0.5}>
-                    <Typography
-                      variant="body2"
-                      fontWeight="bold"
-                      sx={{ color: '#ff9800', fontSize: '0.75rem', lineHeight: 1 }}
-                    >
-                      {getEmployeeTotalHours(employee).pending.toFixed(2)}
-                    </Typography>
-                    <Divider sx={{ my: 0.1 }} />
-                    <Typography
-                      variant="body2"
-                      fontWeight="bold"
-                      sx={{ color: '#4caf50', fontSize: '0.75rem', lineHeight: 1 }}
-                    >
-                      {getEmployeeTotalHours(employee).approved.toFixed(2)}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
+              <EmployeeRow
+                key={employee.userId}
+                employee={employee}
+                hourlyData={data?.hourlyData || []}
+                isAdmin={isAdmin}
+                userName={userName}
+                selectedDate={selectedDate}
+                isDragSelected={isDragSelected}
+                isDragging={isDragging}
+                handleDragStart={handleDragStart}
+                handleDragEnter={handleDragEnter}
+                handleDragEndAction={handleDragEndAction}
+                handleOpenDialog={handleOpenDialog}
+                setEditDialogInfo={setEditDialogInfo}
+                setEditScheduleData={setEditScheduleData}
+                setEditDialogOpen={setEditDialogOpen}
+                setEditLoading={setEditLoading}
+                getEmployeeTotalHours={getEmployeeTotalHours}
+                onEditHourlyRate={handleEditHourlyRate}
+              />
             ))}
           </TableBody>
         </Table>
       </TableContainer>
+      </Box>
+
+      {/* 숫자 셀 클릭 시 로딩 오버레이 */}
+      <Backdrop open={editLoading} sx={{ zIndex: (theme) => theme.zIndex.modal + 1, color: '#fff' }}>
+        <CircularProgress color="inherit" />
+      </Backdrop>
 
       {/* Legend & Dialog & Toast */}
       <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1256,18 +1135,17 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
       </Box>
 
       {/* Time Selection Dialog */}
-      {selectedEmployee && (
-        <TimeSelectionDialog
-          open={dialogOpen}
-          onClose={handleCloseDialog}
-          onConfirm={handleAddSchedule}
-          employeeName={selectedEmployee.name}
-          selectedHour={selectedEmployee.hour}
-          userId={selectedEmployee.userId}
-          selectedDate={selectedDate}
-          dragEndHour={selectedEmployee.dragEndHour}
-        />
-      )}
+      <TimeSelectionDialog
+        open={dialogState.open}
+        onClose={handleCloseDialog}
+        onConfirm={handleAddSchedule}
+        employeeName={dialogState.employee?.name || ''}
+        selectedHour={dialogState.employee?.hour || 0}
+        userId={dialogState.employee?.userId || ''}
+        selectedDate={selectedDate}
+        dragEndHour={dialogState.employee?.dragEndHour}
+        templates={templates}
+      />
 
       {/* Edit Shift Dialog */}
       {editDialogOpen && editDialogInfo && editScheduleData && (
@@ -1291,6 +1169,30 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           fetchSchedules={fetchHourlyData}
         />
       )}
+
+      {/* Hourly Rate Edit Dialog */}
+      <Dialog open={rateDialogOpen} onClose={() => setRateDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>시급 수정 - {rateEditTarget?.name}</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="Hourly Rate ($)"
+            type="number"
+            value={rateEditValue === '0' ? '' : rateEditValue}
+            onChange={(e) => setRateEditValue(e.target.value)}
+            onFocus={(e) => { if (e.target.value === '0') setRateEditValue(''); }}
+            onBlur={(e) => { if (e.target.value === '') setRateEditValue('0'); }}
+            fullWidth
+            inputProps={{ min: 0, step: 0.25 }}
+            placeholder="0"
+            sx={{ mt: 1 }}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveHourlyRate} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Toast Message */}
       <Snackbar
