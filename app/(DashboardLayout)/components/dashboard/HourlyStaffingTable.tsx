@@ -333,14 +333,16 @@ const EmployeeRow = React.memo(function EmployeeRow({
             <Chip label={employee.corp} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
             <Chip label={`EID: ${employee.eid}`} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
             <Chip label={employee.category} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
-            <Chip
-              label={`$${(employee.hourlyRate || 0).toFixed(2)}/hr`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontSize: '0.6rem', height: 16, cursor: isAdmin ? 'pointer' : 'default' }}
-              onClick={isAdmin ? () => onEditHourlyRate?.(employee) : undefined}
-            />
+            {isAdmin && (
+              <Chip
+                label={`$${(employee.hourlyRate || 0).toFixed(2)}/hr`}
+                size="small"
+                color="primary"
+                variant="outlined"
+                sx={{ fontSize: '0.6rem', height: 16, cursor: 'pointer' }}
+                onClick={() => onEditHourlyRate?.(employee)}
+              />
+            )}
           </Stack>
         </Box>
       </TableCell>
@@ -1042,35 +1044,37 @@ export default function HourlyStaffingTable({ initialDate = new Date(), selected
               </TableCell>
             </TableRow>
 
-            {/* Budget Row (시간대별 인건비) */}
-            <TableRow sx={{ backgroundColor: '#e8f5e9' }}>
-              <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: '#e8f5e9', zIndex: 1 }}>
-                <Typography variant="body2" fontWeight="bold">
-                  💰 Labor Budget
-                </Typography>
-              </TableCell>
-              {filteredHourlyData.map((hourData) => (
-                <TableCell key={`budget-${hourData.hour}`} align="center" sx={{ px: 0.5, py: 1 }}>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: '#1b5e20', fontWeight: 'bold', fontSize: '0.7rem', lineHeight: 1 }}
-                  >
-                    ${hourData.budget.toFixed(0)}
+            {/* Budget Row (시간대별 인건비) - admin만 표시 */}
+            {isAdmin && (
+              <TableRow sx={{ backgroundColor: '#e8f5e9' }}>
+                <TableCell sx={{ position: 'sticky', left: 0, backgroundColor: '#e8f5e9', zIndex: 1 }}>
+                  <Typography variant="body2" fontWeight="bold">
+                    💰 Labor Budget
                   </Typography>
                 </TableCell>
-              ))}
-              <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
-                <Typography
-                  variant="body2"
-                  fontWeight="bold"
-                  sx={{ color: '#1b5e20', fontSize: '0.75rem', lineHeight: 1 }}
-                >
-                  ${filteredHourlyData
-                    .reduce((sum, h) => sum + h.budget, 0)
-                    .toFixed(2)}
-                </Typography>
-              </TableCell>
-            </TableRow>
+                {filteredHourlyData.map((hourData) => (
+                  <TableCell key={`budget-${hourData.hour}`} align="center" sx={{ px: 0.5, py: 1 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: '#1b5e20', fontWeight: 'bold', fontSize: '0.7rem', lineHeight: 1 }}
+                    >
+                      ${hourData.budget.toFixed(0)}
+                    </Typography>
+                  </TableCell>
+                ))}
+                <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
+                  <Typography
+                    variant="body2"
+                    fontWeight="bold"
+                    sx={{ color: '#1b5e20', fontSize: '0.75rem', lineHeight: 1 }}
+                  >
+                    ${filteredHourlyData
+                      .reduce((sum, h) => sum + h.budget, 0)
+                      .toFixed(2)}
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
 
             {/* Individual Employee Rows */}
             {sortedEmployees.map((employee) => (
@@ -1159,29 +1163,31 @@ export default function HourlyStaffingTable({ initialDate = new Date(), selected
         />
       )}
 
-      {/* Hourly Rate Edit Dialog */}
-      <Dialog open={rateDialogOpen} onClose={() => setRateDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>시급 수정 - {rateEditTarget?.name}</DialogTitle>
-        <DialogContent>
-          <TextField
-            label="Hourly Rate ($)"
-            type="number"
-            value={rateEditValue === '0' ? '' : rateEditValue}
-            onChange={(e) => setRateEditValue(e.target.value)}
-            onFocus={(e) => { if (e.target.value === '0') setRateEditValue(''); }}
-            onBlur={(e) => { if (e.target.value === '') setRateEditValue('0'); }}
-            fullWidth
-            inputProps={{ min: 0, step: 0.25 }}
-            placeholder="0"
-            sx={{ mt: 1 }}
-            autoFocus
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRateDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleSaveHourlyRate} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Hourly Rate Edit Dialog - admin만 표시 */}
+      {isAdmin && (
+        <Dialog open={rateDialogOpen} onClose={() => setRateDialogOpen(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>시급 수정 - {rateEditTarget?.name}</DialogTitle>
+          <DialogContent>
+            <TextField
+              label="Hourly Rate ($)"
+              type="number"
+              value={rateEditValue === '0' ? '' : rateEditValue}
+              onChange={(e) => setRateEditValue(e.target.value)}
+              onFocus={(e) => { if (e.target.value === '0') setRateEditValue(''); }}
+              onBlur={(e) => { if (e.target.value === '') setRateEditValue('0'); }}
+              fullWidth
+              inputProps={{ min: 0, step: 0.25 }}
+              placeholder="0"
+              sx={{ mt: 1 }}
+              autoFocus
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setRateDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveHourlyRate} variant="contained">Save</Button>
+          </DialogActions>
+        </Dialog>
+      )}
 
       {/* Toast Message */}
       <Snackbar

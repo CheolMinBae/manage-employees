@@ -109,8 +109,17 @@ export default function ChangePasswordPage() {
     }
   };
 
-  const handleSkip = () => {
-    if (isFirstLogin) {
+  const handleSkip = async () => {
+    if (isFirstLogin && session?.user?.email) {
+      try {
+        await fetch('/api/auth/check-first-login', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: session.user.email }),
+        });
+      } catch (error) {
+        console.error('Failed to clear first login flag:', error);
+      }
       router.push('/');
     } else {
       router.back();

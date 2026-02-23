@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import Header from "@/app/(DashboardLayout)/layout/header/Header";
 import Sidebar from "@/app/(DashboardLayout)/layout/sidebar/Sidebar";
 import FirstLoginCheck from "@/app/(DashboardLayout)/components/FirstLoginCheck";
-import { requireSession } from "@libs/auth/requireSession";
 
 
 const MainWrapper = styled("div")(() => ({

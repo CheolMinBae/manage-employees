@@ -192,6 +192,31 @@ describe('HourlyStaffingTable', () => {
     })
   })
 
+  describe('Admin-only Budget visibility', () => {
+    it('shows Labor Budget row for admin users', async () => {
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Labor Budget/)).toBeInTheDocument()
+      })
+    })
+
+    it('hides Labor Budget row for non-admin users', async () => {
+      ;(useSession as jest.Mock).mockReturnValue({
+        data: mockEmployeeSession,
+        status: 'authenticated',
+      })
+
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
+      
+      await waitFor(() => {
+        expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()
+      })
+      
+      expect(screen.queryByText(/Labor Budget/)).not.toBeInTheDocument()
+    })
+  })
+
   describe('Employee Session', () => {
     beforeEach(() => {
       ;(useSession as jest.Mock).mockReturnValue({
