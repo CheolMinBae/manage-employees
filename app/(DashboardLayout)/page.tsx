@@ -1,18 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Grid, Box, Tabs, Tab, CircularProgress, Typography } from '@mui/material';
+import { Grid, Box, Tabs, Tab, CircularProgress, Typography, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import PageContainer from '@/app/(DashboardLayout)/components/container/PageContainer';
 import WeeklyScheduleTable from './components/dashboard/WeeklyScheduleTable';
 import HourlyStaffingTable from './components/dashboard/HourlyStaffingTable';
 import { useProtectedSession } from './hooks/useProtectedSession';
+import { useSelectedCorp } from './hooks/useSelectedCorp';
 import dayjs from 'dayjs';
-import '@/constants/dateConfig'; // dayjs 플러그인 초기화
+import '@/constants/dateConfig';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 
-// 👉 추가
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 
 interface TabPanelProps {
@@ -47,6 +47,7 @@ function a11yProps(index: number) {
 export default function Dashboard() {
   useProtectedSession();
   const { data: session } = useSession();
+  const { selectedCorp, setSelectedCorp, availableCorps, selectedCorpData, loading: corpLoading, isAdmin } = useSelectedCorp();
 
   const [data, setData] = useState<{
     weekTitle: string;
@@ -57,18 +58,18 @@ export default function Dashboard() {
 
   const [weekStart, setWeekStart] = useState<Date>(dayjs().startOf('week').toDate());
 
-  // 탭 상태
   const [tabValue, setTabValue] = useState(0);
 
-  // 👉 URL 쿼리 감지용 추가
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
   const fetchData = async () => {
+    if (!selectedCorp) return;
     const queryParams = new URLSearchParams({
       mode: 'dashboard',
       weekStart: dayjs(weekStart).format('YYYY-MM-DD'),
+      corp: selectedCorp,
     });
 
     const res = await fetch(`/api/schedules?${queryParams.toString()}`, {
@@ -80,8 +81,8 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, [weekStart]);
+    if (selectedCorp) fetchData();
+  }, [weekStart, selectedCorp]);
 
   const handleWeekChange = (dir: 'prev' | 'next') => {
     const newStart = new Date(weekStart);
@@ -98,10 +99,7 @@ export default function Dashboard() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  const userPosition = session?.user?.position;
-  const isAdmin = userPosition === 'admin';
-
-  // 👉 ★ 핵심: URL 쿼리(view)가 변경되면 자동으로 탭 전환 ★
+  // URL 쿼리(view)가 변경되면 자동으로 탭 전환
   useEffect(() => {
     const view = searchParams.get("view");
     if (view === "hourly") {
@@ -111,7 +109,7 @@ export default function Dashboard() {
     }
   }, [searchParams]);
 
-  if (!data) return (
+  if (corpLoading || !data) return (
     <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="60vh" gap={2}>
       <CircularProgress size={48} />
       <Typography variant="body2" color="text.secondary">Loading dashboard...</Typography>
@@ -123,7 +121,30 @@ export default function Dashboard() {
       <PageContainer title="Dashboard" description="this is Dashboard">
         <Box>
 
-          {/* 탭 영역 */}
+          {/* Corporation 선택 + 탭 영역 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            {isAdmin && availableCorps.length > 1 && (
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel>Corporation</InputLabel>
+                <Select
+                  value={selectedCorp}
+                  label="Corporation"
+                  onChange={(e) => setSelectedCorp(e.target.value)}
+                >
+                  {availableCorps.map((corp) => (
+                    <MenuItem key={corp._id} value={corp.name}>
+                      {corp.name}{corp.description ? ` (${corp.description})` : ''}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+            {(!isAdmin || availableCorps.length <= 1) && selectedCorp && (
+              <Typography variant="subtitle1" fontWeight="bold">
+                {selectedCorp}
+              </Typography>
+            )}
+          </Box>
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tabs value={tabValue} onChange={handleTabChange} aria-label="dashboard tabs">
               <Tab label="📅 Weekly Schedule" {...a11yProps(0)} />
@@ -151,6 +172,7 @@ export default function Dashboard() {
           <TabPanel value={tabValue} index={1}>
             <HourlyStaffingTable
               initialDate={ new Date(searchParams.get("date") ?? new Date()) }
+              selectedCorp={selectedCorp}
             />
           </TabPanel>
 

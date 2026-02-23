@@ -23,6 +23,7 @@ interface TimeSlot {
   approvedAt?: string;
   userId: string;
   userType: string;
+  isLocked?: boolean;
 }
 
 interface ExistingSchedule {
@@ -148,6 +149,7 @@ export default function EditShiftDialog({
     return false;
   };
 
+  const isLocked = slot?.isLocked || false;
   const [editStart, setEditStart] = useState<Dayjs | null>(null);
   const [editEnd, setEditEnd] = useState<Dayjs | null>(null);
   const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
@@ -728,7 +730,12 @@ export default function EditShiftDialog({
             </Alert>
           )}
 
-          {/* Always show manual edit UI */}
+          {isLocked && (
+            <Alert severity="warning" sx={{ mb: 1 }}>
+              This schedule was created by a forced template. Time cannot be modified.
+            </Alert>
+          )}
+
           <Box>
             <Typography variant="subtitle1" gutterBottom>
               Work Time
@@ -739,7 +746,7 @@ export default function EditShiftDialog({
                 value={editStart}
                 onChange={handleEditStartChange}
                 shouldDisableTime={makeShouldDisableTime('start')}
-                disabled={loading}
+                disabled={loading || isLocked}
                 sx={{ flex: 1 }}
               />
               <TimePicker
@@ -747,7 +754,7 @@ export default function EditShiftDialog({
                 value={editEnd}
                 onChange={handleEditEndChange}
                 shouldDisableTime={makeShouldDisableTime('end')}
-                disabled={loading}
+                disabled={loading || isLocked}
                 sx={{ flex: 1 }}
               />
             </Stack>
@@ -931,7 +938,7 @@ export default function EditShiftDialog({
             <Button
               variant="contained"
               onClick={handleEditSave}
-              disabled={loading}
+              disabled={loading || isLocked}
             >
               Save
             </Button>

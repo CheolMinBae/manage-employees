@@ -41,8 +41,19 @@ jest.mock('@models/SignupUser', () => {
   return { __esModule: true, default: Model }
 })
 
+// Mock Corporation model
+jest.mock('@models/Corporation', () => {
+  const leanMock = jest.fn().mockResolvedValue(null)
+  const findOne = jest.fn().mockReturnValue({ lean: leanMock })
+  const Model: any = {}
+  Model.findOne = findOne
+  Model._leanMock = leanMock
+  return { __esModule: true, default: Model }
+})
+
 import Schedule from '@models/Schedule'
 import SignupUser from '@models/SignupUser'
+import Corporation from '@models/Corporation'
 
 function createNextRequest(url: string): NextRequest {
   return new NextRequest(new Request(url))
@@ -112,14 +123,36 @@ describe('GET /api/schedules/hourly', () => {
     expect(data.employeeSchedules).toBeDefined()
   })
 
-  it('should return hourly data with 21 hours (3am-11pm)', async () => {
+  it('should return hourly data with default 20 hours (3am-10pm) when no corp', async () => {
     const req = createNextRequest('http://localhost/api/schedules/hourly?date=2024-01-15')
     const res = await GET(req)
     const data = await res.json()
 
-    expect(data.hourlyData).toHaveLength(21)
+    // 기본 businessStartHour=3, businessEndHour=23, totalHours=20
+    expect(data.hourlyData).toHaveLength(20)
     expect(data.hourlyData[0].hour).toBe(3)
-    expect(data.hourlyData[20].hour).toBe(23)
+    expect(data.hourlyData[19].hour).toBe(22)
+    expect(data.businessHours).toEqual({ start: 3, end: 23 })
+  })
+
+  it('should return dynamic hours based on corp business hours', async () => {
+    ;(Corporation.findOne as jest.Mock).mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        name: 'TestCorp',
+        businessDayStartHour: 8,
+        businessDayEndHour: 24,
+      }),
+    })
+
+    const req = createNextRequest('http://localhost/api/schedules/hourly?date=2024-01-15&corp=TestCorp')
+    const res = await GET(req)
+    const data = await res.json()
+
+    // 8~24 = 16시간
+    expect(data.hourlyData).toHaveLength(16)
+    expect(data.hourlyData[0].hour).toBe(8)
+    expect(data.hourlyData[15].hour).toBe(23)
+    expect(data.businessHours).toEqual({ start: 8, end: 24 })
   })
 
   it('should count working employees per hour correctly', async () => {
@@ -281,9 +314,22 @@ describe('GET /api/schedules/hourly', () => {
     const req = createNextRequest('http://localhost/api/schedules/hourly?date=2024-01-15')
     await GET(req)
 
-    expect(SignupUser.find).toHaveBeenCalledWith({
-      status: { $ne: 'deleted' },
+    expect(SignupUser.find).toHaveBeenCalledWith(
+      expect.objectContaining({ status: { $ne: 'deleted' } })
+    )
+  })
+
+  it('should filter users by corp when corp param is provided', async () => {
+    ;(Corporation.findOne as jest.Mock).mockReturnValue({
+      lean: jest.fn().mockResolvedValue(null),
     })
+
+    const req = createNextRequest('http://localhost/api/schedules/hourly?date=2024-01-15&corp=TestCorp')
+    await GET(req)
+
+    expect(SignupUser.find).toHaveBeenCalledWith(
+      expect.objectContaining({ status: { $ne: 'deleted' }, corp: 'TestCorp' })
+    )
   })
 
   it('should handle schedule userId as ObjectId string comparison', async () => {

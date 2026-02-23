@@ -8,6 +8,7 @@ export interface Schedule {
   approved: boolean;
   approvedBy?: string | null;
   approvedAt?: Date | null;
+  isLocked?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

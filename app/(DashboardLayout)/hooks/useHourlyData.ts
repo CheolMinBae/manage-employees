@@ -30,22 +30,29 @@ interface HourlyData {
   employees: any[];
 }
 
+interface BusinessHours {
+  start: number;
+  end: number;
+}
+
 interface HourlyStaffingData {
   date: string;
   hourlyData: HourlyData[];
   employeeSchedules: EmployeeSchedule[];
+  businessHours?: BusinessHours;
 }
 
 interface UseHourlyDataParams {
   initialDate?: Date;
   isAdmin: boolean;
   userName?: string;
+  selectedCorp?: string;
 }
 
 /**
  * HourlyStaffingTable의 데이터 패칭, 필터링, 정렬 로직
  */
-export function useHourlyData({ initialDate = new Date(), isAdmin, userName }: UseHourlyDataParams) {
+export function useHourlyData({ initialDate = new Date(), isAdmin, userName, selectedCorp }: UseHourlyDataParams) {
   const searchParams = useSearchParams();
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
   const [data, setData] = useState<HourlyStaffingData | null>(null);
@@ -80,12 +87,15 @@ export function useHourlyData({ initialDate = new Date(), isAdmin, userName }: U
 
   // 데이터 패칭
   const fetchHourlyData = async (isRefresh = false) => {
+    if (!selectedCorp) return;
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
     try {
       const dateStr = dayjs(selectedDate).format('YYYY-MM-DD');
-      const response = await fetch(`/api/schedules/hourly?date=${dateStr}&includeAdmin=true`, {
+      const params = new URLSearchParams({ date: dateStr, includeAdmin: 'true' });
+      if (selectedCorp) params.set('corp', selectedCorp);
+      const response = await fetch(`/api/schedules/hourly?${params.toString()}`, {
         cache: 'no-store',
       });
       const result = await response.json();
@@ -99,8 +109,8 @@ export function useHourlyData({ initialDate = new Date(), isAdmin, userName }: U
   };
 
   useEffect(() => {
-    fetchHourlyData();
-  }, [selectedDate]);
+    if (selectedCorp) fetchHourlyData();
+  }, [selectedDate, selectedCorp]);
 
   // 필터링된 직원 데이터
   const filteredEmployees = useMemo(() => {
@@ -211,6 +221,9 @@ export function useHourlyData({ initialDate = new Date(), isAdmin, userName }: U
     return { approved: result.approved, pending: result.pending, total: result.approved + result.pending };
   }, []);
 
+  // API가 반환한 businessHours (동적 시간대)
+  const businessHours = data?.businessHours || { start: 3, end: 23 };
+
   return {
     // 데이터
     data,
@@ -218,6 +231,7 @@ export function useHourlyData({ initialDate = new Date(), isAdmin, userName }: U
     setSelectedDate,
     loading,
     refreshing,
+    businessHours,
 
     // 필터
     nameFilter,

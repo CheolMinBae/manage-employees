@@ -328,7 +328,13 @@ export async function GET(req: NextRequest) {
     const schedules = await Schedule.find().select('+createdAt').lean();
     const userIds = Array.from(new Set(schedules.map((s: any) => s.userId.toString())));
     const userMap = await buildUserMap(userIds);
-    const withUserData = populateUserData(schedules, userMap);
+    let withUserData = populateUserData(schedules, userMap);
+
+    // corp 필터 적용 (회사별 분리)
+    const corpFilter = searchParams.get('corp');
+    if (corpFilter) {
+      withUserData = withUserData.filter((s: any) => s.corp === corpFilter);
+    }
 
     // 3) 대시보드 모드
     if (mode === 'dashboard') {
@@ -416,6 +422,14 @@ export async function PUT(req: NextRequest) {
     const targetDate = updates.date || existingSchedule.date;
     const newStart = updates.start || existingSchedule.start;
     const newEnd = updates.end || existingSchedule.end;
+
+    // isLocked 스케줄의 시간 변경 차단 (승인 변경은 허용)
+    if (existingSchedule.isLocked && (updates.start || updates.end || updates.date)) {
+      return NextResponse.json(
+        { error: 'Schedule is locked', message: 'This schedule was created by template force-apply and cannot have its time modified.' },
+        { status: 403 }
+      );
+    }
 
     if (updates.start || updates.end || updates.date) {
       const bw = await getBusinessWindowForUser(targetUserId);

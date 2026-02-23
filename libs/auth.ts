@@ -15,6 +15,8 @@ declare module 'next-auth' {
       position?: string;
       userType?: string[];
       status?: string;
+      corp?: string;
+      managedCorps?: string[];
     }
   }
   
@@ -23,6 +25,8 @@ declare module 'next-auth' {
     position?: string;
     userType?: string[];
     status?: string;
+    corp?: string;
+    managedCorps?: string[];
   }
 }
 
@@ -63,6 +67,8 @@ export const authOptions: NextAuthOptions = {
               position: user.position,
               userType: user.userType,
               status: user.status,
+              corp: user.corp,
+              managedCorps: user.managedCorps,
             };
           }
           
@@ -101,12 +107,13 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async jwt({ token, user }) {
-      // 사용자가 로그인할 때 토큰에 추가 정보 저장
       if (user) {
         token.id = user.id;
         token.position = (user as any).position;
         token.userType = (user as any).userType;
         token.status = (user as any).status;
+        token.corp = (user as any).corp;
+        token.managedCorps = (user as any).managedCorps;
       }
       return token;
     },
@@ -118,6 +125,8 @@ export const authOptions: NextAuthOptions = {
           session.user.position = token.position as string;
           session.user.userType = token.userType as string[];
           session.user.status = token.status as string;
+          session.user.corp = token.corp as string;
+          session.user.managedCorps = token.managedCorps as string[];
         }
 
         // Google OAuth의 경우 DB에서 최신 정보 가져오기
@@ -129,6 +138,8 @@ export const authOptions: NextAuthOptions = {
             session.user.position = user.position;
             session.user.userType = user.userType;
             session.user.status = user.status;
+            session.user.corp = user.corp;
+            session.user.managedCorps = user.managedCorps;
           }
         }
         

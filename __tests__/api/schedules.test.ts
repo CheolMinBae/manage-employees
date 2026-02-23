@@ -346,6 +346,54 @@ describe('PUT /api/schedules', () => {
       { new: true }
     )
   })
+
+  it('should reject time change for locked schedule', async () => {
+    ;(Schedule.findById as jest.Mock).mockResolvedValue({
+      _id: 'sched-1',
+      userId: 'user-1',
+      date: '2024-01-15',
+      start: '09:00',
+      end: '17:00',
+      approved: true,
+      isLocked: true,
+    })
+
+    const req = createNextRequest('http://localhost/api/schedules', {
+      method: 'PUT',
+      body: JSON.stringify({ id: 'sched-1', start: '10:00', end: '18:00' }),
+    })
+
+    const res = await PUT(req)
+    expect(res.status).toBe(403)
+
+    const data = await res.json()
+    expect(data.error).toBe('Schedule is locked')
+  })
+
+  it('should allow approval change for locked schedule', async () => {
+    ;(Schedule.findById as jest.Mock).mockResolvedValue({
+      _id: 'sched-1',
+      userId: 'user-1',
+      date: '2024-01-15',
+      start: '09:00',
+      end: '17:00',
+      approved: false,
+      isLocked: true,
+    })
+    ;(Schedule.findByIdAndUpdate as jest.Mock).mockResolvedValue({
+      _id: 'sched-1',
+      approved: true,
+      isLocked: true,
+    })
+
+    const req = createNextRequest('http://localhost/api/schedules', {
+      method: 'PUT',
+      body: JSON.stringify({ id: 'sched-1', approved: true }),
+    })
+
+    const res = await PUT(req)
+    expect(res.status).toBe(200)
+  })
 })
 
 describe('DELETE /api/schedules', () => {

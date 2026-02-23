@@ -37,7 +37,7 @@ describe('HourlyStaffingTable', () => {
 
   describe('Rendering', () => {
     it('renders the hourly staffing table with correct title', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()
@@ -45,7 +45,7 @@ describe('HourlyStaffingTable', () => {
     })
 
     it('renders California timezone notice', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText(/All times are displayed in California/)).toBeInTheDocument()
@@ -53,7 +53,7 @@ describe('HourlyStaffingTable', () => {
     })
 
     it('renders employee names and information', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('John Doe (Barista)')).toBeInTheDocument()
@@ -62,7 +62,7 @@ describe('HourlyStaffingTable', () => {
     })
 
     it('renders filter controls for admin', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('🔍 Filter Employees')).toBeInTheDocument()
@@ -72,27 +72,28 @@ describe('HourlyStaffingTable', () => {
       })
     })
 
-    it('renders hour headers from 3 AM to 11 PM', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+    it('renders hour headers based on businessHours from API', async () => {
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
+        // mock businessHours: { start: 3, end: 23 } → hours 3~22
         expect(screen.getByText('3 AM')).toBeInTheDocument()
-        expect(screen.getByText('11 PM')).toBeInTheDocument()
+        expect(screen.getByText('10 PM')).toBeInTheDocument()
         expect(screen.getByText('12 PM')).toBeInTheDocument()
       })
     })
 
     it('shows loading state initially', () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
-      expect(screen.getByText('Loading...')).toBeInTheDocument()
+      expect(screen.getByText('Loading staffing data...')).toBeInTheDocument()
     })
   })
 
   describe('Filtering', () => {
     it('filters employees by name', async () => {
       const user = userEvent.setup()
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByLabelText('Name')).toBeInTheDocument()
@@ -108,7 +109,7 @@ describe('HourlyStaffingTable', () => {
 
     it('clears all filters when clear button is clicked', async () => {
       const user = userEvent.setup()
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('Clear')).toBeInTheDocument()
@@ -127,7 +128,7 @@ describe('HourlyStaffingTable', () => {
   describe('Date Navigation', () => {
     it('changes date when clicking navigation buttons', async () => {
       const user = userEvent.setup()
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('Jan 1 (Mon)')).toBeInTheDocument()
@@ -153,7 +154,7 @@ describe('HourlyStaffingTable', () => {
   describe('Sorting', () => {
     it('sorts employees by hour when clicking hour headers', async () => {
       const user = userEvent.setup()
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('9 AM')).toBeInTheDocument()
@@ -169,7 +170,7 @@ describe('HourlyStaffingTable', () => {
 
     it('clears sorting when clear filters button is clicked', async () => {
       const user = userEvent.setup()
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('9 AM')).toBeInTheDocument()
@@ -200,7 +201,7 @@ describe('HourlyStaffingTable', () => {
     })
 
     it('does not show filter controls for non-admin users', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()
@@ -210,7 +211,7 @@ describe('HourlyStaffingTable', () => {
     })
 
     it('only shows employee their own schedules', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('⏰ Hourly Staffing')).toBeInTheDocument()
@@ -223,7 +224,7 @@ describe('HourlyStaffingTable', () => {
 
   describe('Legend and Help Text', () => {
     it('shows legend for staff count colors', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('Legend:')).toBeInTheDocument()
@@ -244,7 +245,7 @@ describe('HourlyStaffingTable', () => {
         },
       })
       
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         expect(screen.getByText('Unable to load data.')).toBeInTheDocument()
@@ -254,7 +255,7 @@ describe('HourlyStaffingTable', () => {
 
   describe('Accessibility', () => {
     it('has proper table structure', async () => {
-      render(<HourlyStaffingTable initialDate={defaultDate} />)
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
       
       await waitFor(() => {
         const table = screen.getByRole('table')

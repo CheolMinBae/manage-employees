@@ -94,12 +94,16 @@ export const mockWeeklyScheduleData = [
 // 시간별 인원 데이터
 export const mockHourlyData = {
   date: '2024-01-01',
-  hourlyData: Array.from({ length: 24 }, (_, hour) => ({
-    hour,
-    pendingCount: hour >= 8 && hour <= 20 ? Math.floor(Math.random() * 5) : 0,
-    approvedCount: hour >= 8 && hour <= 20 ? Math.floor(Math.random() * 8) : 0,
-    employees: [],
-  })),
+  businessHours: { start: 3, end: 23 },
+  hourlyData: Array.from({ length: 20 }, (_, i) => {
+    const hour = i + 3;
+    return {
+      hour,
+      pendingCount: hour >= 8 && hour <= 20 ? Math.floor(Math.random() * 5) : 0,
+      approvedCount: hour >= 8 && hour <= 20 ? Math.floor(Math.random() * 8) : 0,
+      employees: [],
+    };
+  }),
   employeeSchedules: [
     {
       userId: 'user1',

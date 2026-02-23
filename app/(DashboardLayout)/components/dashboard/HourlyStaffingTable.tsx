@@ -62,6 +62,7 @@ interface HourlyStaffingData {
 
 interface HourlyStaffingTableProps {
   initialDate?: Date;
+  selectedCorp?: string;
 }
 
 interface ScheduleTemplate {
@@ -77,7 +78,7 @@ interface ScheduleTemplate {
 interface TimeSelectionDialogProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (startTime: string, endTime: string) => void;
+  onConfirm: (startTime: string, endTime: string, isLocked?: boolean) => void;
   onTemplateConfirm?: (templateId: string) => void;
   employeeName: string;
   selectedHour: number;
@@ -161,8 +162,8 @@ function TimeSelectionDialog({
         );
       }
 
-      // 템플릿으로 새 스케줄 생성
-      await onConfirm(template.startTime, template.endTime);
+      // 템플릿으로 새 스케줄 생성 (isLocked=true)
+      await onConfirm(template.startTime, template.endTime, true);
       onClose();
     } catch (error) {
       console.error('Error applying template:', error);
@@ -346,7 +347,6 @@ const EmployeeRow = React.memo(function EmployeeRow({
 
       {hourlyData.map((hourData) => {
         const hour = hourData.hour;
-        if (hour < 3 || hour > 23) return null;
         const status = employee.hourlyStatus?.[hour];
         return (
           <TableCell key={hour} align="center" sx={{ px: 0.5, py: 1 }}>
@@ -460,24 +460,25 @@ const EmployeeRow = React.memo(function EmployeeRow({
   );
 });
 
-export default function HourlyStaffingTable({ initialDate = new Date() }: HourlyStaffingTableProps) {
-  // 세션 정보
+export default function HourlyStaffingTable({ initialDate = new Date(), selectedCorp }: HourlyStaffingTableProps) {
   const { data: session } = useSession();
   const userPosition = session?.user?.position;
   const userName = session?.user?.name;
   const isAdmin = userPosition === 'admin';
 
-  // 데이터 패칭/필터링/정렬 hook
-  const hourly = useHourlyData({ initialDate, isAdmin, userName: userName ?? undefined });
+  const hourly = useHourlyData({ initialDate, isAdmin, userName: userName ?? undefined, selectedCorp });
   const {
     data, selectedDate, setSelectedDate, loading, refreshing,
     nameFilter, setNameFilter, userTypeFilter, setUserTypeFilter,
     companyFilter, setCompanyFilter, categoryFilter, setCategoryFilter,
     uniqueUserTypes, uniqueCompanies, uniqueCategories,
     sortConfig, handleHourSort,
-    sortedEmployees, filteredHourlyData,
+    sortedEmployees, filteredHourlyData, businessHours,
     fetchHourlyData, handleDateChange, handleClearFilters, getEmployeeTotalHours,
   } = hourly;
+
+  // API가 반환하는 시간대 목록 (hourlyData의 hour 값들)
+  const visibleHours = new Set((data?.hourlyData || []).map(h => h.hour));
 
   // 필터된 직원 수 (표시용)
   const filteredEmployees = hourly.sortedEmployees;
@@ -558,7 +559,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
   });
   const { isDragging, handleDragStart, handleDragEnter, handleDragEndAction, isDragSelected } = drag;
 
-  const handleAddSchedule = useCallback(async (startTime: string, endTime: string) => {
+  const handleAddSchedule = useCallback(async (startTime: string, endTime: string, isLocked?: boolean) => {
     const emp = dialogState.employee;
     if (!emp) return;
     try {
@@ -572,6 +573,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
           start: startTime,
           end: endTime,
           approved: true,
+          ...(isLocked ? { isLocked: true } : {}),
         }),
       });
 
@@ -942,44 +944,41 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
               </TableCell>
 
               {(data?.hourlyData || []).map((hourData) => (
-                <React.Fragment key={`header-${hourData.hour}`}>
-                  {(hourData.hour >= 3 && hourData.hour <= 23) && (
-                    <TableCell
-                      align="center"
+                <TableCell
+                  key={`header-${hourData.hour}`}
+                  align="center"
+                  sx={{
+                    minWidth: 40,
+                    px: 0.5,
+                    cursor: 'pointer',
+                    backgroundColor: sortConfig.hour === hourData.hour
+                      ? (sortConfig.direction === 'desc' ? '#e3f2fd' : '#fff3e0')
+                      : 'transparent',
+                    '&:hover': {
+                      backgroundColor: sortConfig.hour === hourData.hour
+                        ? (sortConfig.direction === 'desc' ? '#bbdefb' : '#ffe0b2')
+                        : 'rgba(0, 0, 0, 0.04)'
+                    },
+                    position: 'relative'
+                  }}
+                  onClick={() => handleHourSort(hourData.hour)}
+                >
+                  <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                    {formatHourCalifornia(hourData.hour)}
+                  </Typography>
+                  {sortConfig.hour === hourData.hour && (
+                    <Typography
+                      variant="caption"
                       sx={{
-                        minWidth: 40,
-                        px: 0.5,
-                        cursor: 'pointer',
-                        backgroundColor: sortConfig.hour === hourData.hour
-                          ? (sortConfig.direction === 'desc' ? '#e3f2fd' : '#fff3e0')
-                          : 'transparent',
-                        '&:hover': {
-                          backgroundColor: sortConfig.hour === hourData.hour
-                            ? (sortConfig.direction === 'desc' ? '#bbdefb' : '#ffe0b2')
-                            : 'rgba(0, 0, 0, 0.04)'
-                        },
-                        position: 'relative'
+                        fontSize: '0.6rem',
+                        display: 'block',
+                        color: sortConfig.direction === 'desc' ? '#1976d2' : '#f57c00'
                       }}
-                      onClick={() => handleHourSort(hourData.hour)}
                     >
-                      <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-                        {formatHourCalifornia(hourData.hour)}
-                      </Typography>
-                      {sortConfig.hour === hourData.hour && (
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            fontSize: '0.6rem',
-                            display: 'block',
-                            color: sortConfig.direction === 'desc' ? '#1976d2' : '#f57c00'
-                          }}
-                        >
-                          {sortConfig.direction === 'desc' ? '↓' : '↑'}
-                        </Typography>
-                      )}
-                    </TableCell>
+                      {sortConfig.direction === 'desc' ? '↓' : '↑'}
+                    </Typography>
                   )}
-                </React.Fragment>
+                </TableCell>
               ))}
               <TableCell align="center" sx={{ minWidth: 60, px: 0.5 }}>
                 <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
@@ -998,31 +997,25 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 </Typography>
               </TableCell>
               {filteredHourlyData.map((hourData) => (
-                <React.Fragment key={`total-${hourData.hour}`}>
-                  {(hourData.hour >= 3 && hourData.hour <= 23) && (
-                    <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
-                      <Tooltip title={renderTooltipContent(hourData.employees)} placement="top" arrow>
-                        <Box>
-                          <>
-                            <Typography
-                              variant="body2"
-                              sx={{ color: '#ff9800', fontWeight: 'bold', lineHeight: 1 }}
-                            >
-                              {hourData.pendingCount.toFixed(2)}
-                            </Typography>
-                            <Divider sx={{ my: 0.2 }} />
-                            <Typography
-                              variant="body2"
-                              sx={{ color: '#4caf50', fontWeight: 'bold', lineHeight: 1 }}
-                            >
-                              {hourData.approvedCount.toFixed(2)}
-                            </Typography>
-                          </>
-                        </Box>
-                      </Tooltip>
-                    </TableCell>
-                  )}
-                </React.Fragment>
+                <TableCell key={`total-${hourData.hour}`} align="center" sx={{ px: 0.5, py: 1 }}>
+                  <Tooltip title={renderTooltipContent(hourData.employees)} placement="top" arrow>
+                    <Box>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: '#ff9800', fontWeight: 'bold', lineHeight: 1 }}
+                      >
+                        {hourData.pendingCount.toFixed(2)}
+                      </Typography>
+                      <Divider sx={{ my: 0.2 }} />
+                      <Typography
+                        variant="body2"
+                        sx={{ color: '#4caf50', fontWeight: 'bold', lineHeight: 1 }}
+                      >
+                        {hourData.approvedCount.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Tooltip>
+                </TableCell>
               ))}
               <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                 <Box display="flex" flexDirection="column" gap={0.5}>
@@ -1057,18 +1050,14 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                 </Typography>
               </TableCell>
               {filteredHourlyData.map((hourData) => (
-                <React.Fragment key={`budget-${hourData.hour}`}>
-                  {(hourData.hour >= 3 && hourData.hour <= 23) && (
-                    <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: '#1b5e20', fontWeight: 'bold', fontSize: '0.7rem', lineHeight: 1 }}
-                      >
-                        ${hourData.budget.toFixed(0)}
-                      </Typography>
-                    </TableCell>
-                  )}
-                </React.Fragment>
+                <TableCell key={`budget-${hourData.hour}`} align="center" sx={{ px: 0.5, py: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: '#1b5e20', fontWeight: 'bold', fontSize: '0.7rem', lineHeight: 1 }}
+                  >
+                    ${hourData.budget.toFixed(0)}
+                  </Typography>
+                </TableCell>
               ))}
               <TableCell align="center" sx={{ px: 0.5, py: 1 }}>
                 <Typography
@@ -1077,7 +1066,6 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
                   sx={{ color: '#1b5e20', fontSize: '0.75rem', lineHeight: 1 }}
                 >
                   ${filteredHourlyData
-                    .filter(h => h.hour >= 3 && h.hour <= 23)
                     .reduce((sum, h) => sum + h.budget, 0)
                     .toFixed(2)}
                 </Typography>
@@ -1165,6 +1153,7 @@ export default function HourlyStaffingTable({ initialDate = new Date() }: Hourly
             approved: editScheduleData.approved || false,
             approvedBy: editScheduleData.approvedBy,
             approvedAt: editScheduleData.approvedAt,
+            isLocked: editScheduleData.isLocked || false,
           }}
           fetchSchedules={fetchHourlyData}
         />
