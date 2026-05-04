@@ -11,6 +11,29 @@ interface Corporation {
   businessDayEndHour?: number;
 }
 
+const STORAGE_KEY = 'manageEmployees.selectedCorp';
+
+function normalizeCorpName(name?: string) {
+  return (name || '').trim().toLowerCase();
+}
+
+function chooseDefaultCorp(available: Corporation[], managed: string[]) {
+  if (available.length === 0) return '';
+
+  const stored = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
+  if (stored && available.some((corp) => corp.name === stored)) return stored;
+
+  const swc = available.find((corp) => normalizeCorpName(corp.name) === 'swc');
+  if (swc) return swc.name;
+
+  if (managed.length > 0) {
+    const firstManaged = available.find((corp) => corp.name === managed[0]);
+    if (firstManaged) return firstManaged.name;
+  }
+
+  return available[0].name;
+}
+
 /**
  * admin의 managedCorps 기반으로 Corporation 선택 상태를 관리하는 hook.
  * employee는 자신의 corp만 반환.
@@ -35,12 +58,10 @@ export function useSelectedCorp() {
 
         if (isAdmin) {
           const managed = session.user.managedCorps || [];
-          // managedCorps가 비어있으면 전체 corp 중 첫 번째, 있으면 첫 번째 managed
-          if (managed.length > 0) {
-            setSelectedCorp(managed[0]);
-          } else if (data.length > 0) {
-            setSelectedCorp(data[0].name);
-          }
+          const available = managed.length > 0
+            ? data.filter((corp) => managed.includes(corp.name))
+            : data;
+          setSelectedCorp(chooseDefaultCorp(available, managed));
         } else {
           // employee는 자신의 corp 고정
           setSelectedCorp(session.user.corp || '');
@@ -69,8 +90,13 @@ export function useSelectedCorp() {
     : corporations.filter(c => c.name === session?.user?.corp);
 
   const handleCorpChange = useCallback((corpName: string) => {
+    const isValid = availableCorps.some((corp) => corp.name === corpName);
+    if (!isValid) return;
     setSelectedCorp(corpName);
-  }, []);
+    if (isAdmin && typeof window !== 'undefined') {
+      window.localStorage.setItem(STORAGE_KEY, corpName);
+    }
+  }, [availableCorps, isAdmin]);
 
   // 선택된 corp의 상세 정보
   const selectedCorpData = corporations.find(c => c.name === selectedCorp) || null;

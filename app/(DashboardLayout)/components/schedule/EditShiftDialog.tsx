@@ -150,6 +150,7 @@ export default function EditShiftDialog({
   };
 
   const isLocked = slot?.isLocked || false;
+  const isApprovedStaffLocked = Boolean(slot?.approved && isEmployee);
   const [editStart, setEditStart] = useState<Dayjs | null>(null);
   const [editEnd, setEditEnd] = useState<Dayjs | null>(null);
   const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
@@ -439,6 +440,10 @@ export default function EditShiftDialog({
 
   const handleEditSave = async () => {
     if (!slot || !editStart || !editEnd) return;
+    if (isApprovedStaffLocked) {
+      alert('Approved schedule cannot be changed by staff.');
+      return;
+    }
 
     // ✅ 저장 전 영업시간/순서 검증
     const sh = editStart.hour();
@@ -471,9 +476,13 @@ export default function EditShiftDialog({
         const secondSession = sessions[1];
 
         // Delete the original schedule
-        await fetch(`/api/schedules?id=${slot._id}`, {
+        const deleteResponse = await fetch(`/api/schedules?id=${slot._id}`, {
           method: 'DELETE',
         });
+        if (!deleteResponse.ok) {
+          const data = await deleteResponse.json().catch(() => ({}));
+          throw new Error(data.message || data.error || 'Failed to update schedule');
+        }
 
         // Create two new schedules
         const firstSchedule = {
@@ -508,7 +517,7 @@ export default function EditShiftDialog({
         ]);
       } else {
         // Handle single session - update existing schedule
-        await fetch('/api/schedules', {
+        const response = await fetch('/api/schedules', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -519,13 +528,17 @@ export default function EditShiftDialog({
             approved: slot.approved || false,
           }),
         });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || data.error || 'Failed to update schedule');
+        }
       }
 
       onClose();
       fetchSchedules();
     } catch (error) {
       console.error('Error updating schedule:', error);
-      alert('Failed to update schedule');
+      alert(error instanceof Error ? error.message : 'Failed to update schedule');
     } finally {
       setLoading(false);
     }
@@ -533,6 +546,10 @@ export default function EditShiftDialog({
 
   const handleDeleteCurrentSchedule = async () => {
     if (!slot) return;
+    if (isApprovedStaffLocked) {
+      alert('Approved schedule cannot be changed by staff.');
+      return;
+    }
 
     if (!confirm('Are you sure you want to delete this schedule?')) return;
 
@@ -546,17 +563,23 @@ export default function EditShiftDialog({
         onClose();
         fetchSchedules();
       } else {
-        throw new Error('Failed to delete schedule');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.error || 'Failed to delete schedule');
       }
     } catch (error) {
       console.error('Error deleting schedule:', error);
-      alert('Failed to delete schedule');
+      alert(error instanceof Error ? error.message : 'Failed to delete schedule');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteExistingSchedule = async (scheduleId: string) => {
+    if (isApprovedStaffLocked) {
+      alert('Approved schedule cannot be changed by staff.');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this existing schedule?')) return;
 
     setLoading(true);
@@ -569,11 +592,12 @@ export default function EditShiftDialog({
         setExistingSchedules(prev => prev.filter(s => s._id !== scheduleId));
         fetchSchedules();
       } else {
-        throw new Error('Failed to delete existing schedule');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.error || 'Failed to delete existing schedule');
       }
     } catch (error) {
       console.error('Error deleting existing schedule:', error);
-      alert('Failed to delete existing schedule');
+      alert(error instanceof Error ? error.message : 'Failed to delete existing schedule');
     } finally {
       setLoading(false);
     }
@@ -581,6 +605,10 @@ export default function EditShiftDialog({
 
   const handleMakeOff = async () => {
     if (!slot) return;
+    if (isApprovedStaffLocked) {
+      alert('Approved schedule cannot be changed by staff.');
+      return;
+    }
 
     if (!confirm(`Are you sure you want to delete ALL schedules for ${slot.date}? This will make the day OFF.`)) return;
 
@@ -596,11 +624,12 @@ export default function EditShiftDialog({
         onClose();
         fetchSchedules();
       } else {
-        throw new Error('Failed to delete all schedules');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.error || 'Failed to delete all schedules');
       }
     } catch (error) {
       console.error('Error deleting all schedules:', error);
-      alert('Failed to delete all schedules');
+      alert(error instanceof Error ? error.message : 'Failed to delete all schedules');
     } finally {
       setLoading(false);
     }
@@ -714,6 +743,12 @@ export default function EditShiftDialog({
             Editing schedule for {slot?.date}
           </Alert>
 
+          {isApprovedStaffLocked && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Approved schedule cannot be changed by staff.
+            </Alert>
+          )}
+
           {/* 승인 정보 표시 */}
           {slot?.approved && (
             <Alert 
@@ -746,7 +781,7 @@ export default function EditShiftDialog({
                 value={editStart}
                 onChange={handleEditStartChange}
                 shouldDisableTime={makeShouldDisableTime('start')}
-                disabled={loading || isLocked}
+                disabled={loading || isLocked || isApprovedStaffLocked}
                 sx={{ flex: 1 }}
               />
               <TimePicker
@@ -754,7 +789,7 @@ export default function EditShiftDialog({
                 value={editEnd}
                 onChange={handleEditEndChange}
                 shouldDisableTime={makeShouldDisableTime('end')}
-                disabled={loading || isLocked}
+                disabled={loading || isLocked || isApprovedStaffLocked}
                 sx={{ flex: 1 }}
               />
             </Stack>
@@ -766,7 +801,7 @@ export default function EditShiftDialog({
                 variant={isSeparated ? "outlined" : "contained"}
                 onClick={isSeparated ? handleCombine : handleSeparate}
                 fullWidth
-                disabled={loading}
+                disabled={loading || isApprovedStaffLocked}
               >
                 {isSeparated ? "Combine Sessions" : "Split Sessions"}
               </Button>
@@ -832,7 +867,7 @@ export default function EditShiftDialog({
                     size="small"
                     deleteIcon={<DeleteIcon />}
                     onDelete={() => handleDeleteExistingSchedule(schedule._id)}
-                    disabled={loading}
+                    disabled={loading || isApprovedStaffLocked}
                   />
                 ))}
               </Stack>
@@ -899,7 +934,7 @@ export default function EditShiftDialog({
               onClick={handleMakeOff}
               color="error"
               variant="outlined"
-              disabled={loading}
+              disabled={loading || isApprovedStaffLocked}
             >
               Make OFF
             </Button>
@@ -920,7 +955,7 @@ export default function EditShiftDialog({
                 onClick={handleResetToPending}
                 color="warning"
                 variant="outlined"
-                disabled={loading}
+                disabled={loading || isApprovedStaffLocked}
               >
                 Reset to Pending
               </Button>
@@ -928,7 +963,7 @@ export default function EditShiftDialog({
             <Button
               onClick={handleDeleteCurrentSchedule}
               color="error"
-              disabled={loading}
+              disabled={loading || isApprovedStaffLocked}
             >
               Delete
             </Button>
@@ -938,7 +973,7 @@ export default function EditShiftDialog({
             <Button
               variant="contained"
               onClick={handleEditSave}
-              disabled={loading || isLocked}
+              disabled={loading || isLocked || isApprovedStaffLocked}
             >
               Save
             </Button>

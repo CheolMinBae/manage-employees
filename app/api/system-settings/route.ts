@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
 import SystemSettings from '@models/SystemSettings';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/libs/auth';
 
 export const dynamic = 'force-dynamic';
+
+async function requireAdmin() {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.position !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required.' }, { status: 403 });
+  }
+  return null;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,6 +39,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     await dbConnect();
     const data = await req.json();
     
@@ -60,6 +73,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     await dbConnect();
     const data = await req.json();
     const { key, value, description } = data;

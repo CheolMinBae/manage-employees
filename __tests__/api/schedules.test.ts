@@ -5,7 +5,7 @@ jest.mock('@libs/db', () => jest.fn())
 
 jest.mock('next-auth', () => ({
   getServerSession: jest.fn().mockResolvedValue({
-    user: { name: 'Admin User' },
+    user: { id: 'admin-1', name: 'Admin User', position: 'admin' },
   }),
 }))
 
@@ -39,6 +39,15 @@ jest.mock('@models/Schedule', () => {
   return { __esModule: true, default: Model }
 })
 
+// Mock ScheduleAuditLog model
+jest.mock('@models/ScheduleAuditLog', () => ({
+  __esModule: true,
+  default: {
+    create: jest.fn().mockResolvedValue({}),
+    find: jest.fn(),
+  },
+}))
+
 // Mock SignupUser model
 jest.mock('@models/SignupUser', () => {
   const findById = jest.fn()
@@ -67,6 +76,7 @@ jest.mock('@models/Corporation', () => {
 import Schedule from '@models/Schedule'
 import SignupUser from '@models/SignupUser'
 import Corporation from '@models/Corporation'
+import { getServerSession } from 'next-auth'
 
 function createNextRequest(url: string, options?: RequestInit): NextRequest {
   return new NextRequest(new Request(url, options))
@@ -347,6 +357,31 @@ describe('PUT /api/schedules', () => {
     )
   })
 
+
+
+  it('should reject staff updating an approved schedule time', async () => {
+    ;(getServerSession as jest.Mock).mockResolvedValueOnce({
+      user: { id: 'staff-1', name: 'Staff User', position: 'employee' },
+    })
+    ;(Schedule.findById as jest.Mock).mockResolvedValue({
+      _id: 'sched-1',
+      userId: 'user-1',
+      date: '2024-01-15',
+      start: '09:00',
+      end: '17:00',
+      approved: true,
+    })
+
+    const req = createNextRequest('http://localhost/api/schedules', {
+      method: 'PUT',
+      body: JSON.stringify({ id: 'sched-1', start: '10:00', end: '18:00' }),
+    })
+
+    const res = await PUT(req)
+    expect(res.status).toBe(403)
+    expect(Schedule.findByIdAndUpdate).not.toHaveBeenCalled()
+  })
+
   it('should reject time change for locked schedule', async () => {
     ;(Schedule.findById as jest.Mock).mockResolvedValue({
       _id: 'sched-1',
@@ -398,6 +433,12 @@ describe('PUT /api/schedules', () => {
 
 describe('DELETE /api/schedules', () => {
   it('should delete a single schedule', async () => {
+    ;(Schedule.findById as jest.Mock).mockResolvedValue({
+      _id: 'sched-1',
+      userId: 'user-1',
+      date: '2024-01-15',
+      approved: false,
+    })
     ;(Schedule.findByIdAndDelete as jest.Mock).mockResolvedValue({
       _id: 'sched-1',
     })
@@ -428,6 +469,29 @@ describe('DELETE /api/schedules', () => {
     expect(data.deletedCount).toBe(3)
   })
 
+
+
+  it('should reject staff deleting an approved schedule', async () => {
+    ;(getServerSession as jest.Mock).mockResolvedValueOnce({
+      user: { id: 'staff-1', name: 'Staff User', position: 'employee' },
+    })
+    ;(Schedule.findById as jest.Mock).mockResolvedValue({
+      _id: 'sched-1',
+      userId: 'user-1',
+      date: '2024-01-15',
+      approved: true,
+    })
+
+    const req = createNextRequest(
+      'http://localhost/api/schedules?id=sched-1',
+      { method: 'DELETE' }
+    )
+
+    const res = await DELETE(req)
+    expect(res.status).toBe(403)
+    expect(Schedule.findByIdAndDelete).not.toHaveBeenCalled()
+  })
+
   it('should return 400 if no id provided for single delete', async () => {
     const req = createNextRequest('http://localhost/api/schedules', {
       method: 'DELETE',
@@ -438,6 +502,7 @@ describe('DELETE /api/schedules', () => {
   })
 
   it('should return 404 if schedule not found', async () => {
+    ;(Schedule.findById as jest.Mock).mockResolvedValue(null)
     ;(Schedule.findByIdAndDelete as jest.Mock).mockResolvedValue(null)
 
     const req = createNextRequest(

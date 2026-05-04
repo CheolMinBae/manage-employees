@@ -23,6 +23,14 @@ interface TimeSlot {
   userType: string;
   approvedBy?: string;
   approvedAt?: string;
+  corp?: string;
+}
+
+interface CorporationSettings {
+  _id: string;
+  name: string;
+  businessDayStartHour: number;
+  businessDayEndHour: number;
 }
 
 interface WorkSession {
@@ -38,6 +46,7 @@ export default function ScheduleApprovalPage() {
   const [endTime, setEndTime] = useState<Dayjs | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimeSlot | null>(null);
+  const [corporations, setCorporations] = useState<CorporationSettings[]>([]);
 
   const [userSearchFilter, setUserSearchFilter] = useState<string>('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -165,6 +174,10 @@ export default function ScheduleApprovalPage() {
 
   useEffect(() => {
     fetchAllSchedules();
+    fetch('/api/corporation')
+      .then(res => res.ok ? res.json() : [])
+      .then((data: CorporationSettings[]) => setCorporations(Array.isArray(data) ? data : []))
+      .catch(() => setCorporations([]));
   }, []);
 
   const uniqueUsers = useMemo(() => {
@@ -242,6 +255,8 @@ export default function ScheduleApprovalPage() {
       return dayjs(`${a.date} ${a.start}`).diff(dayjs(`${b.date} ${b.start}`));
     });
   }, [schedules, activeUser, selectedStatuses, dateRange]);
+
+  const editingCorpSettings = corporations.find((corp) => corp.name === editingSlot?.corp || corp._id === editingSlot?.corp);
 
   if (pageLoading) {
     return (
@@ -402,6 +417,8 @@ export default function ScheduleApprovalPage() {
           }}
           slot={editingSlot}
           fetchSchedules={fetchAllSchedules}
+          businessDayStartHour={editingCorpSettings?.businessDayStartHour}
+          businessDayEndHour={editingCorpSettings?.businessDayEndHour}
         />
       </Box>
     </LocalizationProvider>

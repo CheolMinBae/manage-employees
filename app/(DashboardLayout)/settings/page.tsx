@@ -11,6 +11,7 @@ import {
 import EmployeeManagement from './components/EmployeeManagement';
 import CorporationManagement from './components/CorporationManagement';
 import UserRoleManagement from './components/UserRoleManagement';
+import ScheduleAuditLogTable from './components/ScheduleAuditLogTable';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -62,6 +63,7 @@ export default function SettingsPage() {
             <Tab label="Employee Management" {...a11yProps(0)} />
             <Tab label="Corporation Management" {...a11yProps(1)} />
             <Tab label="User Role Management" {...a11yProps(2)} />
+            <Tab label="Schedule Logs" {...a11yProps(3)} />
           </Tabs>
         </Box>
         
@@ -75,6 +77,10 @@ export default function SettingsPage() {
         
         <TabPanel value={value} index={2}>
           <UserRoleManagement />
+        </TabPanel>
+
+        <TabPanel value={value} index={3}>
+          <ScheduleAuditLogTable />
         </TabPanel>
       </Paper>
     </Box>

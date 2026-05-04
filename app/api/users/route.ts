@@ -4,12 +4,25 @@ import SignupUser from '@models/SignupUser';
 import Schedule from '@models/Schedule';
 import bcrypt from 'bcryptjs';
 import { apiError, apiServerError } from '@libs/api-response';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/libs/auth';
 
 export const dynamic = 'force-dynamic';
+
+async function requireAdmin() {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.position !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required.' }, { status: 403 });
+  }
+  return null;
+}
 
 // GET: 모든 사용자 조회 또는 특정 사용자 조회
 export async function GET(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
 
@@ -33,6 +46,9 @@ export async function GET(req: Request) {
 // POST: 새로운 사용자 생성
 export async function POST(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const { name, email, password, position, userType, corp, eid, category, managedCorps } = await req.json();
 
     if (!name || !email || !password) {
@@ -74,6 +90,9 @@ export async function POST(req: Request) {
 // PUT: 사용자 정보 업데이트
 export async function PUT(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
     const { name, email, position, userType, corp, eid, category, password, managedCorps, hourlyRate } = await req.json();
@@ -158,6 +177,9 @@ export async function PUT(req: Request) {
 // DELETE: 사용자 삭제
 export async function DELETE(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
 

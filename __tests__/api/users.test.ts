@@ -2,6 +2,16 @@ import { GET, POST, PUT, DELETE } from '@/app/api/users/route'
 
 // Mock DB connection
 jest.mock('@libs/db', () => jest.fn())
+jest.mock('next-auth', () => ({
+  getServerSession: jest.fn().mockResolvedValue({
+    user: { id: 'admin-1', name: 'Admin User', position: 'admin' },
+  }),
+}))
+
+jest.mock('@/libs/auth', () => ({
+  authOptions: {},
+}))
+
 
 // Mock models
 const mockUser = {

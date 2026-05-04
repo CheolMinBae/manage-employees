@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
 import Schedule from '@models/Schedule';
+import ScheduleAuditLog from '@models/ScheduleAuditLog';
 import SignupUser from '@models/SignupUser';
 import Corporation from '@models/Corporation';
 import mongoose from 'mongoose';
@@ -12,6 +13,70 @@ import { authOptions } from '@/libs/auth';
 import { apiServerError } from '@libs/api-response';
 
 export const dynamic = 'force-dynamic';
+
+type SessionUser = {
+  id?: string;
+  name?: string | null;
+  position?: string;
+  corp?: string;
+  userType?: string[];
+};
+
+function getActor(session: any): SessionUser {
+  return (session?.user || {}) as SessionUser;
+}
+
+function isStaffLike(actor: SessionUser) {
+  return actor.position !== 'admin';
+}
+
+function serializeDoc(doc: any) {
+  if (!doc) return null;
+  if (typeof doc.toObject === 'function') return doc.toObject();
+  return doc;
+}
+
+function hasScheduleContentChange(updates: any) {
+  return ['start', 'end', 'date', 'userType'].some((key) => updates[key] !== undefined);
+}
+
+async function getTargetUser(userId: string) {
+  try {
+    return await SignupUser.findById(userId).select('_id name corp').lean();
+  } catch (e) {
+    return null;
+  }
+}
+
+async function writeScheduleAuditLog(params: {
+  action: 'create' | 'update' | 'delete' | 'bulk-delete' | 'approve' | 'unapprove';
+  schedule: any;
+  actor?: SessionUser;
+  before?: any;
+  after?: any;
+}) {
+  try {
+    const schedule = serializeDoc(params.schedule) || {};
+    const targetUserId = schedule.userId?.toString?.() || schedule.userId || null;
+    const targetUser: any = targetUserId ? await getTargetUser(targetUserId) : null;
+
+    await ScheduleAuditLog.create({
+      scheduleId: schedule._id?.toString?.() || schedule._id || 'unknown',
+      action: params.action,
+      actorUserId: params.actor?.id || null,
+      actorName: params.actor?.name || 'Unknown',
+      actorRole: params.actor?.position || 'unknown',
+      targetUserId,
+      targetEmployeeName: targetUser?.name || schedule.name || null,
+      corp: targetUser?.corp || schedule.corp || null,
+      date: schedule.date || null,
+      before: params.before ?? null,
+      after: params.after ?? null,
+    });
+  } catch (e) {
+    console.error('Failed to write schedule audit log:', e);
+  }
+}
 
 /* =========================
    Business Day Helpers
@@ -222,8 +287,11 @@ async function handleFilteredGet(params: { userId?: string | null; date?: string
   if (params.userType) filter.userType = params.userType;
 
   // Mongoose 스키마 캐스팅을 우회하기 위해 collection 직접 쿼리
+  // Jest mock/초기 연결 환경에서는 connection.db가 없을 수 있어 Mongoose query로 fallback.
   const db = mongoose.connection.db;
-  const schedules = await db.collection('schedules').find(filter).toArray();
+  const schedules = db
+    ? await db.collection('schedules').find(filter).toArray()
+    : await Schedule.find(filter).lean();
 
   // userType 필터 시 사용자 데이터 populate
   if (params.userType && schedules.length > 0) {
@@ -393,6 +461,13 @@ export async function POST(req: NextRequest) {
     }
 
     const newSchedule = await Schedule.create(data);
+    const session = await getServerSession(authOptions);
+    await writeScheduleAuditLog({
+      action: 'create',
+      schedule: newSchedule,
+      actor: getActor(session),
+      after: serializeDoc(newSchedule),
+    });
     return NextResponse.json(newSchedule);
   } catch (error) {
     return apiServerError('Failed to create schedule', error);
@@ -416,6 +491,31 @@ export async function PUT(req: NextRequest) {
     const existingSchedule: any = await Schedule.findById(id);
     if (!existingSchedule) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
+    }
+
+    const session = await getServerSession(authOptions);
+    const actor = getActor(session);
+    const beforeSnapshot = serializeDoc(existingSchedule);
+
+    if (existingSchedule.approved === true && isStaffLike(actor) && hasScheduleContentChange(updates)) {
+      return NextResponse.json(
+        { error: 'Approved schedule cannot be changed by staff.', message: 'Approved schedule cannot be changed by staff.' },
+        { status: 403 }
+      );
+    }
+
+    if (existingSchedule.approved === true && isStaffLike(actor) && updates.approved === false) {
+      return NextResponse.json(
+        { error: 'Approved schedule cannot be changed by staff.', message: 'Approved schedule cannot be changed by staff.' },
+        { status: 403 }
+      );
+    }
+
+    if (isStaffLike(actor) && updates.approved === true) {
+      return NextResponse.json(
+        { error: 'Only admins can approve schedules.', message: 'Only admins can approve schedules.' },
+        { status: 403 }
+      );
     }
 
     const targetUserId = existingSchedule.userId.toString();
@@ -455,16 +555,25 @@ export async function PUT(req: NextRequest) {
     }
 
     // 승인 상태 변경 시 승인자 정보 기록
+    let action: 'update' | 'approve' | 'unapprove' = hasScheduleContentChange(updates) ? 'update' : 'update';
     if (updates.approved === true && existingSchedule.approved !== true) {
-      const session = await getServerSession(authOptions);
       updates.approvedBy = session?.user?.name || 'Unknown';
       updates.approvedAt = new Date();
-    } else if (updates.approved === false) {
+      action = 'approve';
+    } else if (updates.approved === false && existingSchedule.approved === true) {
       updates.approvedBy = null;
       updates.approvedAt = null;
+      action = 'unapprove';
     }
 
     const updated = await Schedule.findByIdAndUpdate(id, updates, { new: true });
+    await writeScheduleAuditLog({
+      action,
+      schedule: updated || existingSchedule,
+      actor,
+      before: beforeSnapshot,
+      after: serializeDoc(updated),
+    });
     return NextResponse.json(updated);
   } catch (error) {
     return apiServerError('Failed to update schedule', error);
@@ -484,8 +593,25 @@ export async function DELETE(req: NextRequest) {
     const date = searchParams.get('date');
     const deleteAll = searchParams.get('deleteAll');
 
+    const session = await getServerSession(authOptions);
+    const actor = getActor(session);
+
     if (deleteAll === 'true' && userId && date) {
+      const schedulesToDelete: any[] = await Schedule.find({ userId, date }).lean();
+      if (isStaffLike(actor) && schedulesToDelete.some((s) => s.approved === true)) {
+        return NextResponse.json(
+          { error: 'Approved schedule cannot be changed by staff.', message: 'Approved schedule cannot be changed by staff.' },
+          { status: 403 }
+        );
+      }
+
       const deleted = await Schedule.deleteMany({ userId, date });
+      await Promise.all(schedulesToDelete.map((schedule) => writeScheduleAuditLog({
+        action: 'bulk-delete',
+        schedule,
+        actor,
+        before: schedule,
+      })));
       return NextResponse.json({
         success: true,
         deletedCount: deleted.deletedCount,
@@ -497,10 +623,25 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 });
     }
 
-    const deleted = await Schedule.findByIdAndDelete(id);
-    if (!deleted) {
+    const scheduleToDelete: any = await Schedule.findById(id);
+    if (!scheduleToDelete) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
     }
+
+    if (scheduleToDelete.approved === true && isStaffLike(actor)) {
+      return NextResponse.json(
+        { error: 'Approved schedule cannot be changed by staff.', message: 'Approved schedule cannot be changed by staff.' },
+        { status: 403 }
+      );
+    }
+
+    const deleted = await Schedule.findByIdAndDelete(id);
+    await writeScheduleAuditLog({
+      action: 'delete',
+      schedule: scheduleToDelete,
+      actor,
+      before: serializeDoc(scheduleToDelete),
+    });
     return NextResponse.json({ success: true });
   } catch (error) {
     return apiServerError('Failed to delete schedule', error);

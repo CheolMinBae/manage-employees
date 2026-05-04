@@ -1,6 +1,16 @@
 import { GET, POST, PUT, DELETE } from '@/app/api/userrole/route'
 
 jest.mock('@libs/db', () => jest.fn())
+jest.mock('next-auth', () => ({
+  getServerSession: jest.fn().mockResolvedValue({
+    user: { id: 'admin-1', name: 'Admin User', position: 'admin' },
+  }),
+}))
+
+jest.mock('@/libs/auth', () => ({
+  authOptions: {},
+}))
+
 
 const mockRole = {
   _id: 'role-id-1',

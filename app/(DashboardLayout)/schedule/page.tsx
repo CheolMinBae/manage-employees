@@ -68,22 +68,23 @@ export default function ScheduleRegisterPage() {
   const [corporation, setCorporation] = useState<CorporationSettings | null>(null);
 
   const userId = session?.user?.id as string;
-  const corporationId = (session?.user as any)?.corporationId as string;
+  const userCorp = session?.user?.corp as string | undefined;
+  const isEmployee = session?.user?.position === 'employee';
 
   /* =========================
      회사 설정 가져오기
      ========================= */
   useEffect(() => {
-    if (!corporationId) return;
+    if (!userCorp) return;
 
     fetch('/api/corporation')
       .then(res => res.json())
       .then((list: CorporationSettings[]) => {
-        const corp = list.find(c => c._id === corporationId);
+        const corp = list.find(c => c.name === userCorp || c._id === userCorp);
         if (corp) setCorporation(corp);
       })
       .catch(err => console.error('Failed to load corporation settings', err));
-  }, [corporationId]);
+  }, [userCorp]);
 
   /* =========================
      Month / Week Logic
@@ -122,13 +123,27 @@ export default function ScheduleRegisterPage() {
   };
 
   const openEditDialog = (slot: TimeSlot) => {
+    if (isEmployee && slot.approved) {
+      alert('Approved schedule cannot be changed by staff.');
+      return;
+    }
     setEditingSlot(slot);
     setEditDialogOpen(true);
   };
 
   const handleDelete = async (id?: string) => {
     if (!id) return;
-    await fetch(`/api/schedules?id=${id}`, { method: 'DELETE' });
+    const slot = scheduleList.find((s) => s._id === id);
+    if (isEmployee && slot?.approved) {
+      alert('Approved schedule cannot be changed by staff.');
+      return;
+    }
+    const res = await fetch(`/api/schedules?id=${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || data.error || 'Failed to delete schedule');
+      return;
+    }
     fetchSchedules();
   };
 
@@ -282,6 +297,7 @@ export default function ScheduleRegisterPage() {
               openEditDialog={openEditDialog}
               handleDelete={handleDelete}
               onCopyWeek={handleCopyWeek}
+              lockApprovedActions={isEmployee}
             />
           </Grid>
 

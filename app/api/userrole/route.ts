@@ -2,8 +2,18 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
 import UserRole from '@models/UserRole';
 import { apiError, apiServerError } from '@libs/api-response';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/libs/auth';
 
 export const dynamic = 'force-dynamic';
+
+async function requireAdmin() {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.position !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required.' }, { status: 403 });
+  }
+  return null;
+}
 
 // GET: 모든 사용자 역할 조회
 export async function GET() {
@@ -19,6 +29,9 @@ export async function GET() {
 // POST: 새로운 사용자 역할 생성
 export async function POST(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const { key, name, description } = await req.json();
 
     if (!key || !name) {
@@ -50,6 +63,9 @@ export async function POST(req: Request) {
 // PUT: 사용자 역할 정보 업데이트
 export async function PUT(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const { _id, key, name, description } = await req.json();
 
     if (!_id || !key || !name) {
@@ -83,6 +99,9 @@ export async function PUT(req: Request) {
 // DELETE: 사용자 역할 삭제
 export async function DELETE(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const { _id } = await req.json();
 
     if (!_id) {

@@ -1,7 +1,7 @@
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
 
-const adminOnlyPaths = ['/settings', '/schedule-templates'];
+const adminOnlyPaths = ['/settings', '/schedule-templates', '/approve'];
 
 export default withAuth(
   function middleware(req) {

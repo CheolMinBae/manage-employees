@@ -28,12 +28,14 @@ export default function ShiftList({
   openEditDialog,
   handleDelete,
   onCopyWeek,
+  lockApprovedActions = false,
 }: {
   weeks: { start: Date; end: Date }[];
   scheduleList: any[];
   openEditDialog: (slot: any) => void;
   handleDelete: (id: string) => void;
   onCopyWeek: (week: { start: Date; end: Date }) => void;
+  lockApprovedActions?: boolean;
 }) {
   return (
     <Stack spacing={3}>
@@ -70,6 +72,7 @@ export default function ShiftList({
                   const hours = end.diff(start, 'minute') / 60;
                   const color = getDurationColor(hours);
                   const weekday = dayjs(slot.date).format('ddd');
+                  const isApprovedLocked = lockApprovedActions && slot.approved;
 
                   return (
                     <Box
@@ -92,10 +95,20 @@ export default function ShiftList({
                           size="small"
                           color={slot.approved ? 'success' : 'warning'}
                         />
-                        <IconButton size="small" onClick={() => openEditDialog(slot)}>
+                        <IconButton
+                          size="small"
+                          onClick={() => openEditDialog(slot)}
+                          disabled={isApprovedLocked}
+                          title={isApprovedLocked ? 'Approved schedule cannot be changed by staff.' : 'Edit'}
+                        >
                           <EditIcon fontSize="small" />
                         </IconButton>
-                        <IconButton size="small" onClick={() => handleDelete(slot._id)}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDelete(slot._id)}
+                          disabled={isApprovedLocked}
+                          title={isApprovedLocked ? 'Approved schedule cannot be changed by staff.' : 'Delete'}
+                        >
                           <CloseIcon fontSize="small" />
                         </IconButton>
                       </Box>

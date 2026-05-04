@@ -2,8 +2,18 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@libs/db';
 import Corporation from '@models/Corporation';
 import { apiError, apiServerError } from '@libs/api-response';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/libs/auth';
 
 export const dynamic = 'force-dynamic';
+
+async function requireAdmin() {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.position !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required.' }, { status: 403 });
+  }
+  return null;
+}
 
 /**
  * GET: 모든 법인 조회
@@ -24,6 +34,9 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const {
       name,
       description,
@@ -63,6 +76,9 @@ export async function POST(req: Request) {
  */
 export async function PUT(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const {
       _id,
       name,
@@ -112,6 +128,9 @@ export async function PUT(req: Request) {
  */
 export async function DELETE(req: Request) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const { _id } = await req.json();
 
     if (!_id) {
