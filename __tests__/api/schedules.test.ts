@@ -212,6 +212,27 @@ describe('POST /api/schedules', () => {
     expect(data.error).toBe('Schedule conflict detected')
   })
 
+  it('should reject staff creating a schedule with approved=true', async () => {
+    ;(getServerSession as jest.Mock).mockResolvedValueOnce({
+      user: { id: 'staff-1', name: 'Staff User', position: 'employee' },
+    })
+
+    const req = createNextRequest('http://localhost/api/schedules', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: 'user-1',
+        date: '2024-01-15',
+        start: '09:00',
+        end: '17:00',
+        approved: true,
+      }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+    expect(Schedule.create).not.toHaveBeenCalled()
+  })
+
   it('should default userType to Barista if not provided', async () => {
     ;(Schedule.create as jest.Mock).mockResolvedValue({
       userId: 'user-1',
@@ -382,6 +403,29 @@ describe('PUT /api/schedules', () => {
     expect(Schedule.findByIdAndUpdate).not.toHaveBeenCalled()
   })
 
+  it('should reject staff unapproving an approved schedule', async () => {
+    ;(getServerSession as jest.Mock).mockResolvedValueOnce({
+      user: { id: 'staff-1', name: 'Staff User', position: 'employee' },
+    })
+    ;(Schedule.findById as jest.Mock).mockResolvedValue({
+      _id: 'sched-1',
+      userId: 'user-1',
+      date: '2024-01-15',
+      start: '09:00',
+      end: '17:00',
+      approved: true,
+    })
+
+    const req = createNextRequest('http://localhost/api/schedules', {
+      method: 'PUT',
+      body: JSON.stringify({ id: 'sched-1', approved: false }),
+    })
+
+    const res = await PUT(req)
+    expect(res.status).toBe(403)
+    expect(Schedule.findByIdAndUpdate).not.toHaveBeenCalled()
+  })
+
   it('should reject time change for locked schedule', async () => {
     ;(Schedule.findById as jest.Mock).mockResolvedValue({
       _id: 'sched-1',
@@ -470,6 +514,30 @@ describe('DELETE /api/schedules', () => {
   })
 
 
+
+  it('should reject staff bulk-deleting when any schedule is approved', async () => {
+    ;(getServerSession as jest.Mock).mockResolvedValueOnce({
+      user: { id: 'staff-1', name: 'Staff User', position: 'employee' },
+    })
+    ;(Schedule.find as jest.Mock).mockReturnValue({
+      lean: jest.fn().mockResolvedValue([
+        { _id: 's1', userId: 'user-1', date: '2024-01-15', approved: false },
+        { _id: 's2', userId: 'user-1', date: '2024-01-15', approved: true },
+      ]),
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue([]),
+      }),
+    })
+
+    const req = createNextRequest(
+      'http://localhost/api/schedules?userId=user-1&date=2024-01-15&deleteAll=true',
+      { method: 'DELETE' }
+    )
+
+    const res = await DELETE(req)
+    expect(res.status).toBe(403)
+    expect(Schedule.deleteMany).not.toHaveBeenCalled()
+  })
 
   it('should reject staff deleting an approved schedule', async () => {
     ;(getServerSession as jest.Mock).mockResolvedValueOnce({

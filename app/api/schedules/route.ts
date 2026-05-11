@@ -439,6 +439,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const session = await getServerSession(authOptions);
+    const actor = getActor(session);
+    // staff는 생성 시점에 임의로 approved=true를 셋팅할 수 없음
+    if (isStaffLike(actor) && data.approved === true) {
+      return NextResponse.json(
+        { error: 'Only admins can approve schedules.', message: 'Only admins can approve schedules.' },
+        { status: 403 }
+      );
+    }
+
     const bw = await getBusinessWindowForUser(data.userId);
     const v = validateScheduleWindow(data.start, data.end, bw);
     if (!v.ok) {
@@ -461,11 +471,10 @@ export async function POST(req: NextRequest) {
     }
 
     const newSchedule = await Schedule.create(data);
-    const session = await getServerSession(authOptions);
     await writeScheduleAuditLog({
       action: 'create',
       schedule: newSchedule,
-      actor: getActor(session),
+      actor,
       after: serializeDoc(newSchedule),
     });
     return NextResponse.json(newSchedule);

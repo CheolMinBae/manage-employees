@@ -8,6 +8,31 @@ import { useSession } from 'next-auth/react'
 import HourlyStaffingTable from '@/app/(DashboardLayout)/components/dashboard/HourlyStaffingTable'
 import { render, setupFetchMock, mockHourlyData, mockSession, mockEmployeeSession, clearAllMocks, mockFetchResponses } from '@/utils/test-utils'
 
+// employee 세션에서 본인 row가 화면에 표시되도록 mockHourlyData 확장
+const hourlyDataWithEmployee = {
+  ...mockHourlyData,
+  employeeSchedules: [
+    ...mockHourlyData.employeeSchedules,
+    {
+      userId: 'test-employee-id',
+      name: 'Test Employee',
+      position: 'Barista',
+      corp: 'Test Corp',
+      eid: 789,
+      category: 'Full-time',
+      userType: 'Barista',
+      hourlyRate: 25,
+      hourlyStatus: Array.from({ length: 24 }, (_, hour) => ({
+        isWorking: hour >= 9 && hour <= 17,
+        workingRatio: hour >= 9 && hour <= 17 ? 1 : 0,
+        shift: hour >= 9 && hour <= 17 ? '09:00-18:00' : null,
+        approved: true,
+      })),
+      hasSchedule: true,
+    },
+  ],
+}
+
 // Mock the child components
 jest.mock('@/app/(DashboardLayout)/components/schedule/EditShiftDialog', () => {
   return function MockEditShiftDialog({ open, onClose }: any) {
@@ -214,6 +239,38 @@ describe('HourlyStaffingTable', () => {
       })
       
       expect(screen.queryByText(/Labor Budget/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Admin-only Hourly Rate visibility', () => {
+    it('shows hourly rate chip for admin users', async () => {
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/\/hr/).length).toBeGreaterThan(0)
+      })
+    })
+
+    it('hides hourly rate chip for non-admin users (even on their own row)', async () => {
+      ;(useSession as jest.Mock).mockReturnValue({
+        data: mockEmployeeSession,
+        status: 'authenticated',
+      })
+      setupFetchMock({
+        '/api/schedules/hourly': {
+          ok: true,
+          json: async () => hourlyDataWithEmployee,
+        },
+        '/api/schedule-templates': mockFetchResponses.scheduleTemplates,
+      })
+
+      render(<HourlyStaffingTable initialDate={defaultDate} selectedCorp="TestCorp" />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Employee (Barista)')).toBeInTheDocument()
+      })
+
+      expect(screen.queryByText(/\/hr/)).not.toBeInTheDocument()
     })
   })
 
